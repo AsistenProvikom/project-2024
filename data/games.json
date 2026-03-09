@@ -1,0 +1,37 @@
+[
+  {
+    "name": "CarTraffic",
+    "file": "./games-jdk17/CarTraffic.jar",
+    "image": "./images/default.png"
+  },
+  {
+    "name": "Flappy",
+    "file": "./games-jdk17/flappy.jar",
+    "image": "./images/default.png"
+  },
+  {
+    "name": "FrogieCrossTheRoad",
+    "file": "./games-jdk17/FrogieCrossTheRoad.jar",
+    "image": "./images/default.png"
+  },
+  {
+    "name": "Minesweeper",
+    "file": "./games-jdk17/Minesweeper.jar",
+    "image": "./images/default.png"
+  },
+  {
+    "name": "PaddleGame",
+    "file": "./games-jdk17/PaddleGame.jar",
+    "image": "./images/default.png"
+  },
+  {
+    "name": "PongGame",
+    "file": "./games-jdk17/PongGame.jar",
+    "image": "./images/default.png"
+  },
+  {
+    "name": "Snake Game FinPro",
+    "file": "./games-jdk17/Snake Game FinPro.jar",
+    "image": "./images/default.png"
+  }
+]

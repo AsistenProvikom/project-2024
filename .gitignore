@@ -1,0 +1,13 @@
+# Dependencies
+node_modules/
+
+# Cache
+.cache/
+*.cache
+.eslintcache
+.npm
+
+# OS files
+Thumbs.db
+Desktop.ini
+.DS_Store
