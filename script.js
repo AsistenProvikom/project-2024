@@ -45,7 +45,12 @@ async function apiLaunch(jarFile) {
     body: JSON.stringify({ game: jarFile }),
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
+  if (!res.ok) {
+    // Sertakan stderr Java jika ada
+    const javaErr = data.java_stderr?.join("\n") || "";
+    const msg = data.error || `Server error ${res.status}`;
+    throw new Error(javaErr ? `${msg}\n\nJava stderr:\n${javaErr}` : msg);
+  }
   return data;
 }
 
