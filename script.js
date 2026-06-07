@@ -1,18 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // script.js — Java Game Portal
-// Mengganti CheerpJ dengan pendekatan server-side:
-//   1. User klik Play → POST /api/launch { game: "GameName.jar" }
-//   2. Server jalankan JAR di Java 21 + Xvfb virtual display
-//   3. noVNC iframe streaming tampilan game ke browser
 // ─────────────────────────────────────────────────────────────────────────────
 
+// noVNC viewer URL. `path=websockify` → WebSocket connects to /websockify
 const NOVNC_URL =
-  "/novnc/vnc.html?autoconnect=1&resize=scale&path=websockify&reconnect=1";
+  "/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=2000&path=websockify";
 
-// Delay (ms) sebelum menampilkan noVNC — beri waktu Java startup
-const GAME_STARTUP_DELAY = 3000;
-
-// ── View Management ───────────────────────────────────────────────────────────
+// ── View helpers ──────────────────────────────────────────────────────────────
 
 function showGallery() {
   document.getElementById("view-gallery").classList.remove("hidden");
@@ -24,8 +18,15 @@ function showGameView() {
   document.getElementById("view-game").classList.remove("hidden");
 }
 
-function showLoadingOverlay(text) {
+function setLoadingText(text, hint) {
   document.getElementById("loading-text").textContent = text;
+  if (hint !== undefined) {
+    document.querySelector(".loading-hint").textContent = hint;
+  }
+}
+
+function showLoadingOverlay(text, hint) {
+  setLoadingText(text, hint ?? "Java 21 sedang diinisialisasi di server...");
   document.getElementById("loading-overlay").classList.remove("hidden");
   document.getElementById("vnc-wrapper").classList.add("hidden");
 }
@@ -35,7 +36,7 @@ function showVncFrame() {
   document.getElementById("vnc-wrapper").classList.remove("hidden");
 }
 
-// ── API Calls ─────────────────────────────────────────────────────────────────
+// ── API helpers ───────────────────────────────────────────────────────────────
 
 async function apiLaunch(jarFile) {
   const res = await fetch("/api/launch", {
@@ -43,15 +44,36 @@ async function apiLaunch(jarFile) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ game: jarFile }),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: "Server error" }));
-    throw new Error(err.error || `HTTP ${res.status}`);
-  }
-  return res.json();
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Server error ${res.status}`);
+  return data;
 }
 
 async function apiStop() {
   await fetch("/api/stop", { method: "POST" }).catch(() => {});
+}
+
+async function apiStatus() {
+  try {
+    const res = await fetch("/api/status");
+    return await res.json();
+  } catch {
+    return { running: false };
+  }
+}
+
+// Poll /api/status setiap detik sampai game berjalan (max 15 detik)
+async function waitUntilRunning(maxSec = 15) {
+  for (let i = 0; i < maxSec; i++) {
+    await wait(1000);
+    const s = await apiStatus();
+    if (s.running) return true;
+    setLoadingText(
+      `Memulai game... (${i + 1}s)`,
+      "Java sedang dimuat, mohon tunggu..."
+    );
+  }
+  return false;
 }
 
 // ── Play / Stop / Back ────────────────────────────────────────────────────────
@@ -59,31 +81,43 @@ async function apiStop() {
 let novncInitialized = false;
 
 async function playGame(jarFile, gameName) {
-  // Switch to game view
   showGameView();
   document.getElementById("game-topbar-title").textContent = gameName;
   showLoadingOverlay(`Memulai ${gameName}...`);
 
   try {
-    // Tell server to launch the JAR
+    // 1. Kirim request ke server untuk launch JAR
+    setLoadingText("Menghubungi server...", "Mengirim perintah launch ke backend...");
     await apiLaunch(jarFile);
 
-    // Wait for Java process to open its window
-    await wait(GAME_STARTUP_DELAY);
+    // 2. Poll sampai proses Java benar-benar jalan
+    setLoadingText("Menunggu Java startup...", "Java 21 sedang memuat game...");
+    const started = await waitUntilRunning(15);
 
-    // Load noVNC iframe (only set src once — it auto-reconnects after that)
+    if (!started) {
+      throw new Error(
+        "Game tidak dapat dijalankan dalam 15 detik. " +
+        "Kemungkinan JAR crash saat startup."
+      );
+    }
+
+    // 3. Delay singkat agar jendela game sempat muncul di virtual display
+    setLoadingText("Membuka tampilan...", "Menunggu jendela game muncul...");
+    await wait(1500);
+
+    // 4. Tampilkan noVNC iframe
     const frame = document.getElementById("vnc-frame");
     if (!novncInitialized) {
       frame.src = NOVNC_URL;
       novncInitialized = true;
     }
-
     showVncFrame();
+
   } catch (err) {
-    console.error("[Portal] Launch failed:", err);
-    showLoadingOverlay(`⚠️ Gagal: ${err.message}`);
+    console.error("[Portal] playGame error:", err);
+    document.getElementById("loading-text").textContent = `⚠️ ${err.message}`;
     document.querySelector(".loading-hint").textContent =
-      "Coba kembali atau refresh halaman.";
+      "Coba kembali atau buka halaman ini di tab baru.";
   }
 }
 
@@ -96,11 +130,12 @@ async function goBack() {
   showGallery();
 }
 
-// ── Game Gallery ──────────────────────────────────────────────────────────────
+// ── Gallery ───────────────────────────────────────────────────────────────────
 
 async function loadGames() {
   const list = document.getElementById("game-list");
-  list.innerHTML = `<div class="skeleton-grid">${"<div class='skeleton-card'></div>".repeat(6)}</div>`;
+  list.innerHTML =
+    `<div class="skeleton-grid">${"<div class='skeleton-card'></div>".repeat(6)}</div>`;
 
   try {
     const res = await fetch("data/games.json");
@@ -128,12 +163,10 @@ async function loadGames() {
           <div class="card-overlay">
             <button
               class="btn btn-play-big"
-              id="play-btn-${idx}"
+              id="play-btn-overlay-${idx}"
               type="button"
               aria-label="Main ${game.name}"
-            >
-              ▶ Main
-            </button>
+            >▶ Main</button>
           </div>
         </div>
         <div class="card-body">
@@ -141,27 +174,27 @@ async function loadGames() {
           ${game.description ? `<p class="card-desc">${game.description}</p>` : ""}
           <button
             class="btn btn-play"
-            id="play-btn-bottom-${idx}"
+            id="play-btn-${idx}"
             type="button"
-          >
-            ▶ Mainkan
-          </button>
+          >▶ Mainkan</button>
         </div>
       `;
 
-      // Attach click handlers
       const startPlay = () => playGame(jarFile, game.name);
+      card.querySelector(`#play-btn-overlay-${idx}`).addEventListener("click", startPlay);
       card.querySelector(`#play-btn-${idx}`).addEventListener("click", startPlay);
-      card.querySelector(`#play-btn-bottom-${idx}`).addEventListener("click", startPlay);
 
       list.appendChild(card);
     });
+
   } catch (err) {
     list.innerHTML = `
       <div class="error-panel">
         <h3>Gagal memuat daftar game</h3>
         <p>${err.message}</p>
-        <button class="btn btn-play" onclick="loadGames()">Coba lagi</button>
+        <button class="btn btn-play" onclick="loadGames()" style="margin-top:1rem;width:auto;padding:.55rem 1.5rem">
+          Coba lagi
+        </button>
       </div>`;
     console.error("[Portal] loadGames error:", err);
   }
