@@ -4,7 +4,7 @@
 
 // noVNC viewer URL. `path=websockify` → WebSocket connects to /websockify
 const NOVNC_URL =
-  "/novnc/vnc.html?autoconnect=1&resize=scale&reconnect=1&reconnect_delay=2000&path=websockify";
+  "/novnc/vnc.html?autoconnect=1&resize=scale&view_only=false&show_dot=true&reconnect=1&reconnect_delay=2000&path=websockify";
 
 // ── View helpers ──────────────────────────────────────────────────────────────
 
@@ -83,8 +83,6 @@ async function waitUntilRunning(maxSec = 15) {
 
 // ── Play / Stop / Back ────────────────────────────────────────────────────────
 
-let novncInitialized = false;
-
 async function playGame(jarFile, gameName) {
   showGameView();
   document.getElementById("game-topbar-title").textContent = gameName;
@@ -96,7 +94,7 @@ async function playGame(jarFile, gameName) {
     await apiLaunch(jarFile);
 
     // 2. Poll sampai proses Java benar-benar jalan
-    setLoadingText("Menunggu Java startup...", "Java 21 sedang memuat game...");
+    setLoadingText("Menunggu Java startup...", "Java sedang memuat game...");
     const started = await waitUntilRunning(15);
 
     if (!started) {
@@ -106,17 +104,19 @@ async function playGame(jarFile, gameName) {
       );
     }
 
-    // 3. Delay singkat agar jendela game sempat muncul di virtual display
+    // 3. Delay agar jendela game sempat muncul di virtual display
     setLoadingText("Membuka tampilan...", "Menunggu jendela game muncul...");
-    await wait(1500);
+    await wait(3000);
 
-    // 4. Tampilkan noVNC iframe
+    // 4. Selalu reload noVNC iframe (agar game lama tidak numpuk)
     const frame = document.getElementById("vnc-frame");
-    if (!novncInitialized) {
-      frame.src = NOVNC_URL;
-      novncInitialized = true;
-    }
+    frame.src = "about:blank";
+    await wait(200);
+    frame.src = NOVNC_URL;
+
+    // 5. Tampilkan frame & auto-focus agar input (klik/keyboard) bisa masuk
     showVncFrame();
+    frame.addEventListener("load", () => frame.focus(), { once: true });
 
   } catch (err) {
     console.error("[Portal] playGame error:", err);
