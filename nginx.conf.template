@@ -1,0 +1,66 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# nginx.conf.template
+# LISTEN_PORT is replaced by start.sh using $PORT from Render.com
+# ─────────────────────────────────────────────────────────────────────────────
+
+user root;
+worker_processes 1;
+pid /tmp/nginx.pid;
+error_log /dev/stderr warn;
+
+events {
+    worker_connections 64;
+}
+
+http {
+    include       /etc/nginx/mime.types;
+    default_type  application/octet-stream;
+    access_log    off;
+    sendfile      on;
+
+    # Increase timeouts for long-lived VNC WebSocket connections
+    proxy_read_timeout    86400s;
+    proxy_send_timeout    86400s;
+    proxy_connect_timeout 10s;
+
+    server {
+        listen LISTEN_PORT;
+        server_name _;
+
+        # ── 1. Static Portal (HTML/CSS/JS/images) ─────────────────────────────
+        location / {
+            root  /www;
+            index index.html;
+            try_files $uri $uri/ /index.html;
+        }
+
+        # ── 2. Flask REST API ──────────────────────────────────────────────────
+        location /api/ {
+            proxy_pass         http://127.0.0.1:5000/api/;
+            proxy_set_header   Host $host;
+            proxy_set_header   X-Real-IP $remote_addr;
+            proxy_set_header   X-Forwarded-For $proxy_add_x_forwarded_for;
+            add_header         Access-Control-Allow-Origin *;
+            add_header         Access-Control-Allow-Methods "GET, POST, OPTIONS";
+            add_header         Access-Control-Allow-Headers "Content-Type";
+        }
+
+        # ── 3. noVNC static files (HTML/JS/CSS for the VNC client) ────────────
+        location /novnc/ {
+            proxy_pass         http://127.0.0.1:6080/;
+            proxy_http_version 1.1;
+            proxy_set_header   Upgrade    $http_upgrade;
+            proxy_set_header   Connection "upgrade";
+            proxy_set_header   Host       $host;
+        }
+
+        # ── 4. WebSocket endpoint (noVNC ↔ VNC) ───────────────────────────────
+        location /websockify {
+            proxy_pass         http://127.0.0.1:6080/websockify;
+            proxy_http_version 1.1;
+            proxy_set_header   Upgrade    $http_upgrade;
+            proxy_set_header   Connection "upgrade";
+            proxy_set_header   Host       $host;
+        }
+    }
+}

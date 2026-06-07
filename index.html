@@ -1,40 +1,77 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Java Game Portal — Mainkan game Java langsung di browser tanpa install apapun. Koleksi game hasil Final Project Praktikum." />
     <title>Java Game Portal</title>
+
+    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
       rel="stylesheet"
     />
+
     <link rel="stylesheet" href="style.css" />
-    <script src="https://cjrtnc.leaningtech.com/4.2/loader.js"></script>
   </head>
   <body>
-    <header class="site-header">
-      <div class="header-content">
-        <h1>Java Game Portal</h1>
-        <p class="subtitle">Final Project Showcase — Praktikum Lab</p>
+
+    <!-- ═══ GALLERY VIEW ═══════════════════════════════════════════════════ -->
+    <div id="view-gallery">
+      <header class="site-header">
+        <div class="header-content">
+          <div class="header-badge">🎮 Final Project Showcase</div>
+          <h1>Java Game Portal</h1>
+          <p class="subtitle">Praktikum Lab — Klik game untuk langsung bermain di browser</p>
+        </div>
+      </header>
+
+      <main class="container">
+        <section id="gallery-section">
+          <h2 class="section-title">Game Library</h2>
+          <div id="game-list"></div>
+        </section>
+      </main>
+
+      <footer class="site-footer">
+        <p>&copy; 2024 Java Game Portal &mdash; Powered by Java 21 &amp; noVNC</p>
+      </footer>
+    </div>
+
+    <!-- ═══ GAME VIEWER ════════════════════════════════════════════════════ -->
+    <div id="view-game" class="hidden">
+      <div class="game-topbar">
+        <button id="btn-back" class="btn btn-back" onclick="goBack()">
+          ← Kembali
+        </button>
+        <span id="game-topbar-title" class="topbar-title"></span>
+        <button id="btn-stop" class="btn btn-stop" onclick="stopGame()">
+          ⏹ Stop
+        </button>
       </div>
-    </header>
 
-    <main class="container">
-      <section id="gallery-section">
-        <h2 class="section-title">Game Library</h2>
-        <div id="game-list"></div>
-      </section>
+      <!-- Loading overlay (shown while game starts) -->
+      <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-card">
+          <div class="spinner"></div>
+          <p id="loading-text">Memulai game...</p>
+          <p class="loading-hint">Java 21 sedang diinisialisasi di server</p>
+        </div>
+      </div>
 
-      <section id="game-section" class="hidden">
-        <div id="game-container"></div>
-      </section>
-    </main>
-
-    <footer class="site-footer">
-      <p>&copy; 2024 Java Game Portal. All rights reserved.</p>
-    </footer>
+      <!-- noVNC iframe (hidden until game is ready) -->
+      <div id="vnc-wrapper" class="vnc-wrapper hidden">
+        <iframe
+          id="vnc-frame"
+          class="vnc-frame"
+          src=""
+          allowfullscreen
+          title="Game Display"
+        ></iframe>
+      </div>
+    </div>
 
     <script src="script.js"></script>
   </body>

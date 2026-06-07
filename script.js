@@ -1,119 +1,178 @@
-// Java Game Portal - CheerpJ v4.2 Runtime
+// ─────────────────────────────────────────────────────────────────────────────
+// script.js — Java Game Portal
+// Mengganti CheerpJ dengan pendekatan server-side:
+//   1. User klik Play → POST /api/launch { game: "GameName.jar" }
+//   2. Server jalankan JAR di Java 21 + Xvfb virtual display
+//   3. noVNC iframe streaming tampilan game ke browser
+// ─────────────────────────────────────────────────────────────────────────────
 
-let cheerpjReady = false;
+const NOVNC_URL =
+  "/novnc/vnc.html?autoconnect=1&resize=scale&path=websockify&reconnect=1";
 
-async function initCheerpJ() {
-  if (cheerpjReady) return;
-  await cheerpjInit({
-    version: 17,
-  });
-  cheerpjReady = true;
-  console.log("CheerpJ initialized");
-}
+// Delay (ms) sebelum menampilkan noVNC — beri waktu Java startup
+const GAME_STARTUP_DELAY = 3000;
+
+// ── View Management ───────────────────────────────────────────────────────────
 
 function showGallery() {
-  document.getElementById("gallery-section").classList.remove("hidden");
-  document.getElementById("game-section").classList.add("hidden");
+  document.getElementById("view-gallery").classList.remove("hidden");
+  document.getElementById("view-game").classList.add("hidden");
 }
 
-function showGame() {
-  document.getElementById("gallery-section").classList.add("hidden");
-  document.getElementById("game-section").classList.remove("hidden");
+function showGameView() {
+  document.getElementById("view-gallery").classList.add("hidden");
+  document.getElementById("view-game").classList.remove("hidden");
 }
+
+function showLoadingOverlay(text) {
+  document.getElementById("loading-text").textContent = text;
+  document.getElementById("loading-overlay").classList.remove("hidden");
+  document.getElementById("vnc-wrapper").classList.add("hidden");
+}
+
+function showVncFrame() {
+  document.getElementById("loading-overlay").classList.add("hidden");
+  document.getElementById("vnc-wrapper").classList.remove("hidden");
+}
+
+// ── API Calls ─────────────────────────────────────────────────────────────────
+
+async function apiLaunch(jarFile) {
+  const res = await fetch("/api/launch", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ game: jarFile }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Server error" }));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  return res.json();
+}
+
+async function apiStop() {
+  await fetch("/api/stop", { method: "POST" }).catch(() => {});
+}
+
+// ── Play / Stop / Back ────────────────────────────────────────────────────────
+
+let novncInitialized = false;
+
+async function playGame(jarFile, gameName) {
+  // Switch to game view
+  showGameView();
+  document.getElementById("game-topbar-title").textContent = gameName;
+  showLoadingOverlay(`Memulai ${gameName}...`);
+
+  try {
+    // Tell server to launch the JAR
+    await apiLaunch(jarFile);
+
+    // Wait for Java process to open its window
+    await wait(GAME_STARTUP_DELAY);
+
+    // Load noVNC iframe (only set src once — it auto-reconnects after that)
+    const frame = document.getElementById("vnc-frame");
+    if (!novncInitialized) {
+      frame.src = NOVNC_URL;
+      novncInitialized = true;
+    }
+
+    showVncFrame();
+  } catch (err) {
+    console.error("[Portal] Launch failed:", err);
+    showLoadingOverlay(`⚠️ Gagal: ${err.message}`);
+    document.querySelector(".loading-hint").textContent =
+      "Coba kembali atau refresh halaman.";
+  }
+}
+
+async function stopGame() {
+  await apiStop();
+}
+
+async function goBack() {
+  await apiStop();
+  showGallery();
+}
+
+// ── Game Gallery ──────────────────────────────────────────────────────────────
 
 async function loadGames() {
-  try {
-    const response = await fetch("data/games.json");
-    const games = await response.json();
-    const listContainer = document.getElementById("game-list");
-    listContainer.innerHTML = "";
+  const list = document.getElementById("game-list");
+  list.innerHTML = `<div class="skeleton-grid">${"<div class='skeleton-card'></div>".repeat(6)}</div>`;
 
-    games.forEach((game) => {
+  try {
+    const res = await fetch("data/games.json");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const games = await res.json();
+
+    list.innerHTML = "";
+
+    games.forEach((game, idx) => {
+      const jarFile = game.jar || game.file || game.filename || "";
+
       const card = document.createElement("div");
       card.className = "game-card";
-
-      let jarPath = game.jar || game.file || `games-jdk17/${game.filename}`;
-      jarPath = jarPath.replace(/^\.\//, "");
-      if (!jarPath.startsWith("/app/")) {
-        jarPath = "/app/" + jarPath;
-      }
+      card.style.animationDelay = `${idx * 60}ms`;
 
       card.innerHTML = `
-        <img class="card-image" src="${game.image}" alt="${game.name}">
+        <div class="card-image-wrap">
+          <img
+            class="card-image"
+            src="${game.image || "./images/default.png"}"
+            alt="${game.name}"
+            loading="lazy"
+            onerror="this.src='./images/default.png'"
+          />
+          <div class="card-overlay">
+            <button
+              class="btn btn-play-big"
+              id="play-btn-${idx}"
+              type="button"
+              aria-label="Main ${game.name}"
+            >
+              ▶ Main
+            </button>
+          </div>
+        </div>
         <div class="card-body">
-          <h3>${game.name}</h3>
-          <button class="btn btn-play" type="button">Play</button>
+          <h3 title="${game.name}">${game.name}</h3>
+          ${game.description ? `<p class="card-desc">${game.description}</p>` : ""}
+          <button
+            class="btn btn-play"
+            id="play-btn-bottom-${idx}"
+            type="button"
+          >
+            ▶ Mainkan
+          </button>
         </div>
       `;
 
-      const btn = card.querySelector("button");
-      btn.addEventListener("click", () => playGame(jarPath, game.name));
-      listContainer.appendChild(card);
+      // Attach click handlers
+      const startPlay = () => playGame(jarFile, game.name);
+      card.querySelector(`#play-btn-${idx}`).addEventListener("click", startPlay);
+      card.querySelector(`#play-btn-bottom-${idx}`).addEventListener("click", startPlay);
+
+      list.appendChild(card);
     });
-  } catch (e) {
-    document.getElementById("game-list").innerHTML =
-      `<div class="error-panel"><h3>Failed to load games</h3><p>${e.message}</p></div>`;
-    console.error("Failed to load games:", e);
-  }
-}
-
-async function playGame(jarPath, gameName) {
-  const container = document.getElementById("game-container");
-  showGame();
-
-  // Show loading state
-  container.innerHTML = `
-    <button class="btn btn-back" onclick="showGallery()">Back to Library</button>
-    <div class="loader">
-      <div class="spinner"></div>
-      <p id="status">Initializing runtime...</p>
-    </div>
-  `;
-
-  try {
-    const statusEl = document.getElementById("status");
-
-    statusEl.textContent = "Initializing CheerpJ runtime...";
-    await initCheerpJ();
-
-    statusEl.textContent = "Launching " + gameName + "...";
-
-    container.innerHTML = `
-      <button class="btn btn-back" onclick="showGallery()">Back to Library</button>
-      <h2 class="game-title">${gameName}</h2>
-      <div id="applet" style="width:800px; height:600px;"></div>
-    `;
-
-    cheerpjCreateDisplay(800, 600, document.getElementById("applet"));
-
-    console.log("Running jar:", jarPath);
-    await cheerpjRunJar(jarPath);
-    console.log("Game running");
   } catch (err) {
-    console.error("Error:", err);
-
-    container.innerHTML = `
-      <button class="btn btn-back" onclick="showGallery()">Back to Library</button>
+    list.innerHTML = `
       <div class="error-panel">
-        <h3>Failed to run ${gameName}</h3>
+        <h3>Gagal memuat daftar game</h3>
         <p>${err.message}</p>
-        <details>
-          <summary>Debug Info</summary>
-          <pre>${err.stack}</pre>
-        </details>
-        <h4 style="margin-top:1rem; color: var(--text-secondary); font-size:0.9rem;">Troubleshooting</h4>
-        <ol class="solutions">
-          <li>Refresh the page and try again</li>
-          <li>CheerpJ may take a moment to download on first load</li>
-          <li>Open browser console (F12) for more details</li>
-        </ol>
-      </div>
-    `;
+        <button class="btn btn-play" onclick="loadGames()">Coba lagi</button>
+      </div>`;
+    console.error("[Portal] loadGames error:", err);
   }
 }
 
-// Load games when page ready
-document.addEventListener("DOMContentLoaded", loadGames);
-if (document.readyState !== "loading") {
-  loadGames();
+// ── Utils ─────────────────────────────────────────────────────────────────────
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+document.addEventListener("DOMContentLoaded", loadGames);

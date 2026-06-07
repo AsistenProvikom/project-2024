@@ -1,0 +1,27 @@
+# Git — jangan commit file besar / cache / dependency
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Build artifacts
+dist/
+build/
+*.log
+
+# Docker build cache (jangan exclude games/ karena diperlukan di image)

@@ -1,37 +1,44 @@
 [
   {
-    "name": "CarTraffic",
-    "file": "./games-jdk17/CarTraffic.jar",
-    "image": "./images/default.png"
+    "name": "Car Traffic",
+    "jar": "CarTraffic.jar",
+    "image": "./images/default.png",
+    "description": "Kendalikan kendaraan di persimpangan yang sibuk, hindari tabrakan."
   },
   {
-    "name": "Flappy",
-    "file": "./games-jdk17/flappy.jar",
-    "image": "./images/default.png"
+    "name": "Flappy Bird",
+    "jar": "flappy.jar",
+    "image": "./images/default.png",
+    "description": "Terbangkan burung melewati rintangan pipa tanpa menyentuhnya."
   },
   {
-    "name": "FrogieCrossTheRoad",
-    "file": "./games-jdk17/FrogieCrossTheRoad.jar",
-    "image": "./images/default.png"
+    "name": "Froggie Cross the Road",
+    "jar": "FrogieCrossTheRoad.jar",
+    "image": "./images/default.png",
+    "description": "Bantu katak menyeberangi jalan dan sungai yang berbahaya."
   },
   {
     "name": "Minesweeper",
-    "file": "./games-jdk17/Minesweeper.jar",
-    "image": "./images/default.png"
+    "jar": "Minesweeper.jar",
+    "image": "./images/default.png",
+    "description": "Temukan semua ranjau tanpa meledakkannya. Gunakan logika!"
   },
   {
-    "name": "PaddleGame",
-    "file": "./games-jdk17/PaddleGame.jar",
-    "image": "./images/default.png"
+    "name": "Paddle Game",
+    "jar": "PaddleGame.jar",
+    "image": "./images/default.png",
+    "description": "Pantulkan bola menggunakan paddle dan hancurkan semua blok."
   },
   {
-    "name": "PongGame",
-    "file": "./games-jdk17/PongGame.jar",
-    "image": "./images/default.png"
+    "name": "Pong",
+    "jar": "PongGame.jar",
+    "image": "./images/default.png",
+    "description": "Game tenis meja klasik. Jangan biarkan bola melewati paddle-mu!"
   },
   {
-    "name": "Snake Game FinPro",
-    "file": "./games-jdk17/Snake Game FinPro.jar",
-    "image": "./images/default.png"
+    "name": "Snake",
+    "jar": "Snake Game FinPro.jar",
+    "image": "./images/default.png",
+    "description": "Kendalikan ular yang memanjang, makan makanan dan hindari dinding."
   }
 ]
