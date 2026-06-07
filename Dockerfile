@@ -33,7 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gettext-base \
     procps \
     dos2unix \
-    && pip3 install --no-cache-dir flask websockify \
+    && pip3 install --no-cache-dir --break-system-packages flask websockify \
     && rm -rf /var/lib/apt/lists/*
 
 # Download noVNC v1.4.0 (stable)
