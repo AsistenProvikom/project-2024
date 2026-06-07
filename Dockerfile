@@ -22,8 +22,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     # Fonts
     fonts-dejavu-core \
     fonts-liberation \
-    # Web server & tools
+    # Web server & process manager
     nginx \
+    supervisor \
     # Python for API & websockify
     python3 \
     python3-pip \
@@ -31,6 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     wget \
     gettext-base \
     procps \
+    dos2unix \
     && pip3 install --no-cache-dir flask websockify \
     && rm -rf /var/lib/apt/lists/*
 
@@ -62,7 +64,8 @@ COPY supervisord.conf         /etc/supervisor/conf.d/supervisord.conf
 COPY nginx.conf.template      /etc/nginx/nginx.conf.template
 COPY start.sh                 /start.sh
 
-RUN chmod +x /start.sh
+# Fix line endings (Windows CRLF → Unix LF) then make executable
+RUN dos2unix /start.sh && chmod +x /start.sh
 
 # ── Fluxbox minimal config (dark background, no taskbar) ─────────────────────
 RUN mkdir -p /root/.fluxbox && \
