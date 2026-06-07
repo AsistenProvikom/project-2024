@@ -3,7 +3,7 @@
 # Deploy: Render.com (Docker)
 # ─────────────────────────────────────────────────────────────────────────────
 
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:23-jre-noble
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
