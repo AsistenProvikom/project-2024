@@ -14,6 +14,8 @@ import signal
 import time
 import threading
 import io
+import mss
+from PIL import Image
 
 app = Flask(__name__, static_folder="/app/static", static_url_path="")
 
@@ -37,38 +39,51 @@ _latest_frame = None  # bytes (JPEG)
 # ── Screenshot capture thread ────────────────────────────────────────────────
 
 def _capture_loop():
-    """Terus-menerus capture screenshot dari Xvfb display."""
+    """Terus-menerus capture screenshot dari Xvfb display menggunakan mss + Pillow."""
     global _latest_frame
     interval = 1.0 / CAPTURE_FPS
-    env = os.environ.copy()
-    env["DISPLAY"] = DISPLAY
+    
+    os.environ["DISPLAY"] = DISPLAY
 
     # Tunggu Xvfb siap
     time.sleep(3)
-    print("[CAPTURE] Starting screenshot capture loop", flush=True)
+    print("[CAPTURE] Starting mss screenshot capture loop", flush=True)
 
-    while True:
-        try:
-            result = subprocess.run(
-                [
-                    "import",
-                    "-window", "root",
-                    "-display", DISPLAY,
-                    "-quality", str(JPEG_QUALITY),
-                    "-resize", f"{SCREEN_W}x{SCREEN_H}",
-                    "jpeg:-",   # output JPEG ke stdout
-                ],
-                capture_output=True,
-                timeout=5,
-                env=env,
-            )
-            if result.returncode == 0 and result.stdout:
-                with _frame_lock:
-                    _latest_frame = result.stdout
-        except Exception as e:
-            print(f"[CAPTURE] Error: {e}", flush=True)
+    try:
+        with mss.mss(display=DISPLAY) as sct:
+            # Dapatkan resolusi monitor Xvfb (biasanya di index 1, fallback ke index 0)
+            monitor = sct.monitors[1] if len(sct.monitors) > 1 else sct.monitors[0]
+            
+            while True:
+                start_t = time.time()
+                try:
+                    # Grab raw pixels dari X11
+                    sct_img = sct.grab(monitor)
+                    # Convert BGRA bytes ke Image (Pillow)
+                    img = Image.frombytes("RGB", sct_img.size, sct_img.bgra, "raw", "BGRX")
+                    
+                    # Resize ke resolusi target jika perlu
+                    if img.width != SCREEN_W or img.height != SCREEN_H:
+                        img = img.resize((SCREEN_W, SCREEN_H), Image.Resampling.LANCZOS)
+                        
+                    # Encode jadi JPEG di memory
+                    buf = io.BytesIO()
+                    img.save(buf, format="JPEG", quality=JPEG_QUALITY)
+                    
+                    with _frame_lock:
+                        _latest_frame = buf.getvalue()
+                        
+                except Exception as e:
+                    print(f"[CAPTURE] Frame error: {e}", flush=True)
+                    time.sleep(1)
 
-        time.sleep(interval)
+                # FPS pacing
+                elapsed = time.time() - start_t
+                if elapsed < interval:
+                    time.sleep(interval - elapsed)
+
+    except Exception as e:
+        print(f"[CAPTURE] Fatal error initializing mss: {e}", flush=True)
 
 
 # Start capture thread

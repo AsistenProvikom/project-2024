@@ -36,6 +36,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && pip3 install --no-cache-dir --break-system-packages \
        flask \
        gunicorn \
+       mss \
+       Pillow \
     && rm -rf /var/lib/apt/lists/*
 
 # Directories
