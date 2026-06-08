@@ -1,41 +1,96 @@
 """
-api/server.py — Flask REST API
-Launch/stop game JAR di virtual display Xvfb :99.
-Sekarang capture stderr Java agar error bisa dilihat di log Render.
+server.py — Java Game Portal: Custom Screenshot Streaming
+===========================================================
+Tidak pakai VNC/noVNC/websockify sama sekali.
+- Screenshot: ImageMagick `import` command → capture Xvfb display → JPEG
+- Input:      xdotool → inject mouse/keyboard ke Xvfb display
+- Streaming:  Browser polling /api/screen setiap ~80ms (12fps)
 """
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_file, Response
 import subprocess
 import os
 import signal
 import time
 import threading
+import io
 
-app = Flask(__name__)
+app = Flask(__name__, static_folder="/app/static", static_url_path="")
+
+# ── Config ────────────────────────────────────────────────────────────────────
+GAMES_DIR   = "/games"
+DISPLAY     = ":99"
+SCREEN_W    = 1280
+SCREEN_H    = 800
+CAPTURE_FPS = 15
+JPEG_QUALITY = 55
 
 # ── State ─────────────────────────────────────────────────────────────────────
 current_process = None
 current_game    = None
-java_stderr     = []          # Buffer stderr Java (max 100 baris)
+java_stderr     = []
 
-GAMES_DIR = "/games"
-DISPLAY   = ":99"
+# Screenshot buffer (updated by background thread)
+_frame_lock   = threading.Lock()
+_latest_frame = None  # bytes (JPEG)
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+# ── Screenshot capture thread ────────────────────────────────────────────────
+
+def _capture_loop():
+    """Terus-menerus capture screenshot dari Xvfb display."""
+    global _latest_frame
+    interval = 1.0 / CAPTURE_FPS
+    env = os.environ.copy()
+    env["DISPLAY"] = DISPLAY
+
+    # Tunggu Xvfb siap
+    time.sleep(3)
+    print("[CAPTURE] Starting screenshot capture loop", flush=True)
+
+    while True:
+        try:
+            result = subprocess.run(
+                [
+                    "import",
+                    "-window", "root",
+                    "-display", DISPLAY,
+                    "-quality", str(JPEG_QUALITY),
+                    "-resize", f"{SCREEN_W}x{SCREEN_H}",
+                    "jpeg:-",   # output JPEG ke stdout
+                ],
+                capture_output=True,
+                timeout=5,
+                env=env,
+            )
+            if result.returncode == 0 and result.stdout:
+                with _frame_lock:
+                    _latest_frame = result.stdout
+        except Exception as e:
+            print(f"[CAPTURE] Error: {e}", flush=True)
+
+        time.sleep(interval)
+
+
+# Start capture thread
+_capture_thread = threading.Thread(target=_capture_loop, daemon=True)
+_capture_thread.start()
+
+# ── Java stderr reader ────────────────────────────────────────────────────────
 
 def _read_stderr(proc):
-    """Baca stderr Java di thread terpisah, print ke log Render & simpan ke buffer."""
     global java_stderr
     try:
         for raw in iter(proc.stderr.readline, b""):
             line = raw.decode("utf-8", errors="replace").rstrip()
             print(f"[JAVA] {line}", flush=True)
             java_stderr.append(line)
-            if len(java_stderr) > 100:
-                java_stderr = java_stderr[-100:]
+            if len(java_stderr) > 50:
+                java_stderr = java_stderr[-50:]
     except Exception:
         pass
 
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def kill_current():
     global current_process, current_game
@@ -43,10 +98,10 @@ def kill_current():
         try:
             pgid = os.getpgid(current_process.pid)
             os.killpg(pgid, signal.SIGTERM)
-            time.sleep(0.4)
+            time.sleep(0.3)
             if current_process.poll() is None:
                 os.killpg(pgid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError, ProcessError):
+        except Exception:
             pass
         current_process = None
         current_game    = None
@@ -55,68 +110,59 @@ def kill_current():
 def is_running():
     return current_process is not None and current_process.poll() is None
 
-# ── Routes ────────────────────────────────────────────────────────────────────
 
-@app.route("/api/launch", methods=["POST", "OPTIONS"])
+# ── Routes: Static ────────────────────────────────────────────────────────────
+
+@app.route("/")
+def index():
+    return app.send_static_file("index.html")
+
+
+# ── Routes: API ───────────────────────────────────────────────────────────────
+
+@app.route("/api/launch", methods=["POST"])
 def launch():
     global current_process, current_game, java_stderr
 
-    if request.method == "OPTIONS":
-        return _cors()
-
-    data    = request.get_json(silent=True) or {}
-    game    = data.get("game") or request.args.get("game", "")
+    data = request.get_json(silent=True) or {}
+    game = data.get("game", "")
 
     if not game:
-        return jsonify({"error": "Parameter 'game' wajib diisi"}), 400
+        return jsonify({"error": "game parameter required"}), 400
     if ".." in game or "/" in game or "\\" in game:
-        return jsonify({"error": "Nama game tidak valid"}), 400
+        return jsonify({"error": "invalid game name"}), 400
 
     jar_path = os.path.join(GAMES_DIR, game)
     if not os.path.isfile(jar_path):
-        available = os.listdir(GAMES_DIR)
-        return jsonify({"error": f"Game tidak ditemukan: {game}", "available": available}), 404
+        avail = [f for f in os.listdir(GAMES_DIR) if f.endswith(".jar")]
+        return jsonify({"error": f"Not found: {game}", "available": avail}), 404
 
     kill_current()
-    java_stderr = []   # reset log
+    java_stderr = []
 
     env = os.environ.copy()
     env["DISPLAY"] = DISPLAY
     env["HOME"]    = "/root"
-    env["JAVA_TOOL_OPTIONS"] = "-Djava.awt.headless=false"
 
     print(f"[API] Launching: {jar_path}", flush=True)
 
     try:
         proc = subprocess.Popen(
-            [
-                "java",
-                "-Djava.awt.headless=false",
-                "-Dawt.useSystemAAFontSettings=on",
-                "-Dswing.aatext=true",
-                "-jar", jar_path,
-            ],
+            ["java", "-Djava.awt.headless=false", "-jar", jar_path],
             env=env,
-            cwd=GAMES_DIR,            # working dir = /games agar resource relatif ketemu
+            cwd=GAMES_DIR,
             preexec_fn=os.setsid,
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,   # capture stderr untuk debugging
+            stderr=subprocess.PIPE,
         )
 
-        # Baca stderr di background thread
         t = threading.Thread(target=_read_stderr, args=(proc,), daemon=True)
         t.start()
 
-        # Tunggu sebentar: cek apakah langsung crash
         time.sleep(1.5)
         if proc.poll() is not None:
-            # Process sudah exit — kembalikan stderr sebagai error
-            err_lines = "\n".join(java_stderr[-20:]) or "(tidak ada output)"
-            print(f"[API] Java exited immediately! stderr:\n{err_lines}", flush=True)
-            return jsonify({
-                "error": "Java process keluar langsung (crash).",
-                "java_stderr": java_stderr[-20:]
-            }), 500
+            err = "\n".join(java_stderr[-15:]) or "(no output)"
+            return jsonify({"error": "Java crashed", "java_stderr": java_stderr[-15:]}), 500
 
         current_process = proc
         current_game    = game
@@ -124,8 +170,13 @@ def launch():
         return jsonify({"status": "launched", "game": game, "pid": proc.pid})
 
     except Exception as exc:
-        print(f"[API] Exception: {exc}", flush=True)
         return jsonify({"error": str(exc)}), 500
+
+
+@app.route("/api/stop", methods=["POST"])
+def stop():
+    kill_current()
+    return jsonify({"status": "stopped"})
 
 
 @app.route("/api/status", methods=["GET"])
@@ -134,36 +185,100 @@ def status():
     return jsonify({
         "running": running,
         "game":    current_game if running else None,
-        "stderr":  java_stderr[-10:],   # kirim 10 baris terakhir untuk debug
     })
-
-
-@app.route("/api/stop", methods=["POST", "OPTIONS"])
-def stop():
-    if request.method == "OPTIONS":
-        return _cors()
-    kill_current()
-    print("[API] Stopped", flush=True)
-    return jsonify({"status": "stopped"})
 
 
 @app.route("/api/games", methods=["GET"])
 def list_games():
+    jars = sorted(f for f in os.listdir(GAMES_DIR) if f.endswith(".jar"))
+    return jsonify({"games": jars})
+
+
+# ── Routes: Screenshot Streaming ──────────────────────────────────────────────
+
+@app.route("/api/screen")
+def screen():
+    """Return latest screenshot as JPEG."""
+    with _frame_lock:
+        frame = _latest_frame
+    if not frame:
+        # Kirim 1x1 pixel transparan jika belum ada frame
+        return Response(b"", status=204)
+    return Response(frame, mimetype="image/jpeg",
+                    headers={"Cache-Control": "no-store"})
+
+
+# ── Routes: Input Injection ───────────────────────────────────────────────────
+
+# Map JavaScript key names → xdotool key names
+KEY_MAP = {
+    "ArrowUp": "Up", "ArrowDown": "Down",
+    "ArrowLeft": "Left", "ArrowRight": "Right",
+    "Enter": "Return", " ": "space",
+    "Escape": "Escape", "Backspace": "BackSpace",
+    "Tab": "Tab", "Delete": "Delete",
+    "Shift": "Shift_L", "Control": "Control_L", "Alt": "Alt_L",
+    "a": "a", "b": "b", "c": "c", "d": "d", "e": "e",
+    "f": "f", "g": "g", "h": "h", "i": "i", "j": "j",
+    "k": "k", "l": "l", "m": "m", "n": "n", "o": "o",
+    "p": "p", "q": "q", "r": "r", "s": "s", "t": "t",
+    "u": "u", "v": "v", "w": "w", "x": "x", "y": "y", "z": "z",
+    "0": "0", "1": "1", "2": "2", "3": "3", "4": "4",
+    "5": "5", "6": "6", "7": "7", "8": "8", "9": "9",
+}
+
+def _xdo(*args):
+    """Run xdotool with DISPLAY set."""
     try:
-        jars = sorted(f for f in os.listdir(GAMES_DIR) if f.endswith(".jar"))
-        return jsonify({"games": jars})
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+        subprocess.run(
+            ["xdotool"] + list(args),
+            env={"DISPLAY": DISPLAY, "HOME": "/root"},
+            timeout=2,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except Exception:
+        pass
 
 
-def _cors():
-    r = jsonify({"ok": True})
-    r.headers["Access-Control-Allow-Origin"]  = "*"
-    r.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    r.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    return r
+@app.route("/api/input", methods=["POST"])
+def handle_input():
+    """Receive mouse/keyboard events from browser, inject into Xvfb via xdotool."""
+    data = request.get_json(silent=True) or {}
+    action = data.get("type", "")
+
+    if action == "mousemove":
+        _xdo("mousemove", "--screen", "0", str(data["x"]), str(data["y"]))
+
+    elif action == "mousedown":
+        btn = str(data.get("button", 1))
+        _xdo("mousemove", "--screen", "0", str(data["x"]), str(data["y"]))
+        _xdo("mousedown", btn)
+
+    elif action == "mouseup":
+        btn = str(data.get("button", 1))
+        _xdo("mouseup", btn)
+
+    elif action == "click":
+        btn = str(data.get("button", 1))
+        _xdo("mousemove", "--screen", "0", str(data["x"]), str(data["y"]))
+        _xdo("click", btn)
+
+    elif action == "keydown":
+        key = KEY_MAP.get(data.get("key", ""), data.get("key", ""))
+        if key:
+            _xdo("keydown", key)
+
+    elif action == "keyup":
+        key = KEY_MAP.get(data.get("key", ""), data.get("key", ""))
+        if key:
+            _xdo("keyup", key)
+
+    return jsonify({"ok": True})
 
 
+# ── Entry point ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
-    print("[API] Starting Flask on 127.0.0.1:5000", flush=True)
-    app.run(host="127.0.0.1", port=5000, debug=False, threaded=True)
+    port = int(os.environ.get("PORT", 8080))
+    print(f"[SERVER] Starting on 0.0.0.0:{port}", flush=True)
+    app.run(host="0.0.0.0", port=port, debug=False, threaded=True)

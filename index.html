@@ -3,22 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Java Game Portal — Mainkan game Java langsung di browser tanpa install apapun. Koleksi game hasil Final Project Praktikum." />
+    <meta name="description" content="Java Game Portal — Mainkan game Java langsung di browser." />
     <title>Java Game Portal</title>
-
-    <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
-
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
 
-    <!-- ═══ GALLERY VIEW ═══════════════════════════════════════════════════ -->
+    <!-- ═══ GALLERY VIEW ═══════════════════════════════════════════════ -->
     <div id="view-gallery">
       <header class="site-header">
         <div class="header-content">
@@ -36,40 +30,31 @@
       </main>
 
       <footer class="site-footer">
-        <p>&copy; 2024 Java Game Portal &mdash; Powered by Java 21 &amp; noVNC</p>
+        <p>&copy; 2024 Java Game Portal &mdash; Powered by Java 23</p>
       </footer>
     </div>
 
-    <!-- ═══ GAME VIEWER ════════════════════════════════════════════════════ -->
+    <!-- ═══ GAME VIEWER ════════════════════════════════════════════════ -->
     <div id="view-game" class="hidden">
       <div class="game-topbar">
-        <button id="btn-back" class="btn btn-back" onclick="goBack()">
-          ← Kembali
-        </button>
+        <button id="btn-back" class="btn btn-back" type="button">← Kembali</button>
         <span id="game-topbar-title" class="topbar-title"></span>
-        <button id="btn-stop" class="btn btn-stop" onclick="stopGame()">
-          ⏹ Stop
-        </button>
+        <button id="btn-stop" class="btn btn-stop" type="button">⏹ Stop</button>
       </div>
 
-      <!-- Loading overlay (shown while game starts) -->
+      <!-- Loading overlay -->
       <div id="loading-overlay" class="loading-overlay">
         <div class="loading-card">
           <div class="spinner"></div>
           <p id="loading-text">Memulai game...</p>
-          <p class="loading-hint">Java 21 sedang diinisialisasi di server</p>
+          <p class="loading-hint">Java sedang diinisialisasi di server</p>
         </div>
       </div>
 
-      <!-- noVNC iframe (hidden until game is ready) -->
-      <div id="vnc-wrapper" class="vnc-wrapper hidden">
-        <iframe
-          id="vnc-frame"
-          class="vnc-frame"
-          src=""
-          allowfullscreen
-          title="Game Display"
-        ></iframe>
+      <!-- Game canvas (hidden until game starts) -->
+      <div id="canvas-wrapper" class="canvas-wrapper hidden">
+        <canvas id="game-canvas" tabindex="0"></canvas>
+        <div id="fps-counter" class="fps-counter"></div>
       </div>
     </div>
 
