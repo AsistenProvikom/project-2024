@@ -4,7 +4,7 @@
 
 // noVNC viewer URL. `path=websockify` → WebSocket connects to /websockify
 const NOVNC_URL =
-  "/novnc/vnc.html?autoconnect=1&resize=scale&view_only=false&show_dot=true&reconnect=1&reconnect_delay=2000&path=websockify";
+  "/novnc/vnc.html?autoconnect=1&resize=scale&view_only=false&show_dot=true&reconnect=1&reconnect_delay=2000&path=novnc/websockify";
 
 // ── View helpers ──────────────────────────────────────────────────────────────
 
