@@ -31,9 +31,18 @@ function showApplet() {
   document.getElementById("canvas-wrapper").classList.remove("hidden");
 }
 
-function gamePath(jarFile) {
+async function loadGameJar(jarFile) {
   const fileName = encodeURIComponent(jarFile.split("/").pop());
-  return `/app/games/${fileName}`;
+  const url = new URL(`games/${fileName}`, document.baseURI);
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Gagal memuat JAR (${response.status}): ${url.pathname}`);
+  }
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  const virtualPath = `/str/${fileName}`;
+  cheerpOSAddStringFile(virtualPath, bytes);
+  return virtualPath;
 }
 
 async function playGame(jarFile, gameName) {
@@ -50,7 +59,8 @@ async function playGame(jarFile, gameName) {
     cheerpjCreateDisplay(-1, -1, applet);
     showApplet();
 
-    await cheerpjRunJar(gamePath(jarFile));
+    const virtualPath = await loadGameJar(jarFile);
+    await cheerpjRunJar(virtualPath);
   } catch (error) {
     console.error("[Portal] Failed to run game:", error);
     showLoading(`⚠️ ${error.message}`, "Coba kembali atau refresh halaman.");
