@@ -5,7 +5,7 @@ let cheerpjReady = false;
 async function initCheerpJ() {
   if (cheerpjReady) return;
 
-  await cheerpjInit({ version: 25 });
+  await cheerpjInit({ version: 25, status: "none" });
   cheerpjReady = true;
 }
 
