@@ -33,7 +33,7 @@ function showApplet() {
 
 function gamePath(jarFile) {
   const fileName = encodeURIComponent(jarFile.split("/").pop());
-  return new URL(`app/games/${fileName}`, document.baseURI).pathname;
+  return `/app/games/${fileName}`;
 }
 
 async function playGame(jarFile, gameName) {
