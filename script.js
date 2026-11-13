@@ -1,10 +1,30 @@
 // Java Game Portal — CheerpJ 5.0 runtime
 
 let cheerpjReady = false;
+let cheerpjFontLogFilterInstalled = false;
+
+function suppressCheerpJFontLogs() {
+  if (cheerpjFontLogFilterInstalled) return;
+
+  const methods = ["log", "info", "warn", "error"];
+  methods.forEach((method) => {
+    const original = console[method];
+    console[method] = (...args) => {
+      if (typeof args[0] === "string" &&
+          args[0].startsWith("CheerpJ: Font rempping for")) {
+        return;
+      }
+      original.apply(console, args);
+    };
+  });
+
+  cheerpjFontLogFilterInstalled = true;
+}
 
 async function initCheerpJ() {
   if (cheerpjReady) return;
 
+  suppressCheerpJFontLogs();
   await cheerpjInit({ version: 25, status: "none" });
   cheerpjReady = true;
 }
