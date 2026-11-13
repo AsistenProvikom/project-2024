@@ -2,6 +2,9 @@
 
 let cheerpjReady = false;
 let cheerpjFontLogFilterInstalled = false;
+const GAME_DEPENDENCIES = {
+  "PaddleGame.jar": ["lib/AbsoluteLayout.jar"],
+};
 
 function suppressCheerpJFontLogs() {
   if (cheerpjFontLogFilterInstalled) return;
@@ -52,17 +55,27 @@ function showApplet() {
 }
 
 async function loadGameJar(jarFile) {
-  const fileName = encodeURIComponent(jarFile.split("/").pop());
-  const url = new URL(`games/${fileName}`, document.baseURI);
+  const jarName = jarFile.split("/").pop();
+  const fileName = encodeURIComponent(jarName);
+  const dependencies = GAME_DEPENDENCIES[jarName] || [];
+
+  for (const dependency of dependencies) {
+    await loadGameFile(dependency, `/str/${dependency}`);
+  }
+
+  await loadGameFile(jarName, `/str/${fileName}`);
+  return `/str/${fileName}`;
+}
+
+async function loadGameFile(relativePath, virtualPath) {
+  const url = new URL(`games/${relativePath}`, document.baseURI);
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Gagal memuat JAR (${response.status}): ${url.pathname}`);
   }
 
   const bytes = new Uint8Array(await response.arrayBuffer());
-  const virtualPath = `/str/${fileName}`;
   cheerpOSAddStringFile(virtualPath, bytes);
-  return virtualPath;
 }
 
 async function playGame(jarFile, gameName) {
