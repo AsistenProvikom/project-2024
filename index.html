@@ -9,6 +9,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <link rel="stylesheet" href="style.css" />
+    <script src="https://cjrtnc.leaningtech.com/5.0/loader.js"></script>
   </head>
   <body>
 
@@ -30,7 +31,7 @@
       </main>
 
       <footer class="site-footer">
-        <p>&copy; 2024 Java Game Portal &mdash; Powered by Java 23</p>
+        <p>&copy; 2024 Java Game Portal &mdash; Powered by CheerpJ 5.0</p>
       </footer>
     </div>
 
@@ -42,19 +43,16 @@
         <button id="btn-stop" class="btn btn-stop" type="button">⏹ Stop</button>
       </div>
 
-      <!-- Loading overlay -->
       <div id="loading-overlay" class="loading-overlay">
         <div class="loading-card">
           <div class="spinner"></div>
           <p id="loading-text">Memulai game...</p>
-          <p class="loading-hint">Java sedang diinisialisasi di server</p>
+          <p class="loading-hint">Java sedang diinisialisasi di browser</p>
         </div>
       </div>
 
-      <!-- Game canvas (hidden until game starts) -->
       <div id="canvas-wrapper" class="canvas-wrapper hidden">
-        <canvas id="game-canvas" tabindex="0"></canvas>
-        <div id="fps-counter" class="fps-counter"></div>
+        <div id="applet"></div>
       </div>
     </div>
 
