@@ -27,10 +27,18 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
 
+      - name: Prepare static site
+        run: |
+          mkdir -p _site/app/games
+          cp index.html style.css script.js _site/
+          cp -r data images _site/
+          cp games/*.jar _site/app/games/
+          touch _site/.nojekyll
+
       - name: Upload static site
         uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
 
       - name: Deploy
         id: deployment
