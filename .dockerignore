@@ -1,4 +1,9 @@
 # Git — jangan commit file besar / cache / dependency
+.git/
+.gitignore
+
+# DDEV (local development only, not part of the production image)
+.ddev/
 
 # Node
 node_modules/

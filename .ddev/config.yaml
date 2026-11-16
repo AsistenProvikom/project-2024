@@ -1,0 +1,18 @@
+name: project2024
+type: php
+docroot: ""
+php_version: "8.4"
+webserver_type: nginx-fpm
+xdebug_enabled: false
+additional_hostnames: []
+additional_fqdns: []
+database:
+  type: mariadb
+  version: "11.8"
+use_dns_when_possible: true
+composer_version: "2"
+web_environment: []
+corepack_enable: false
+# Static site: no database needed for local development.
+# Remove this line if the project later grows a backend that needs MariaDB.
+omit_containers: [db]
