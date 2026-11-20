@@ -1,0 +1,87 @@
+{
+  "schema_version": "1.1",
+  "generated_at": "2026-11-20T09:26:29Z",
+  "provikom_converter_version": "0.1.0",
+  "backend": "cheerpj",
+  "backend_display_name": "CheerpJ 5.0",
+  "runtime_version": 25,
+  "is_experimental": true,
+  "runtime": {
+    "version": 25,
+    "label": "Java 25 (Experimental Preview Candidate)",
+    "experimental": true,
+    "selection_reason": "Java 22 bytecode (major 66) mapped to the Java 25 preview runtime. This target is experimental."
+  },
+  "entry_point": "index.html",
+  "jar_file": "CarTraffic.jar",
+  "java_major_version": 66,
+  "lifecycle": {
+    "state": "built",
+    "prediction_only": true,
+    "execution_verified": false,
+    "source": "artifact_generation",
+    "verification": {
+      "state": "not_run",
+      "automated": false,
+      "manual": false
+    }
+  },
+  "game": {
+    "title": "Car Traffic",
+    "jar_file": "CarTraffic.jar",
+    "sha256": "ff1e14564f77cb356ec9ffbee82fb1291981c57471082b7c0faa5cc6bcff1f2e",
+    "size_bytes": 453769,
+    "main_class": "main.Main",
+    "entry_point_source": "manifest",
+    "entry_point_candidates": [],
+    "java_major_version": 66,
+    "java_version": "Java 22",
+    "has_audio": false,
+    "gui_apis": [
+      "Java AWT",
+      "Java Swing"
+    ],
+    "audio_apis": []
+  },
+  "compatibility": {
+    "status": "supported",
+    "summary": "CheerpJ supports this JAR directly with high expected compatibility.",
+    "confidence_score": 0.92,
+    "verified_capabilities": [
+      "Accepts compiled binary JAR input directly without source code.",
+      "Bytecode major version 66 (Java 22) is supported by CheerpJ 5.0 runtime.",
+      "CheerpJ provides client-side OpenJDK AWT/Swing canvas rendering."
+    ],
+    "assumptions_and_risks": [],
+    "blockers": [],
+    "workarounds_needed": [],
+    "remediation_steps": []
+  },
+  "paths": {
+    "web_root": "/",
+    "virtual_mount_root": "/app/",
+    "main_jar": "CarTraffic.jar",
+    "main_jar_virtual_path": "/app/CarTraffic.jar",
+    "class_path": [
+      "/app/CarTraffic.jar"
+    ]
+  },
+  "dependencies": [],
+  "notes": [
+    "Java 22 bytecode is executed on the Java 25 preview runtime. This path is experimental and may change with CheerpJ releases.",
+    "Archive security notice: Embedded archive detected: 'Final Project_Zidane Sindhu.jar' (8838 bytes)"
+  ],
+  "generated_files": [
+    "index.html",
+    "style.css",
+    "app.js",
+    "manifest.json",
+    ".provikom-artifact.json",
+    "CarTraffic.jar"
+  ],
+  "ownership": {
+    "owner": "provikom-converter",
+    "artifact_id": "a295c25bd80a43db81f57d11d79a1b67",
+    "marker": ".provikom-artifact.json"
+  }
+}

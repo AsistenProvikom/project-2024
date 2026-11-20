@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <title>Paddle Game — Provikom Web Player</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cjrtnc.leaningtech.com/5.0/loader.js"></script>
+  </head>
+  <body data-status="idle">
+    <div id="player-app">
+      <header class="player-header">
+        <div class="header-left">
+          <span class="brand-logo">Provikom</span>
+          <h1 class="game-title">Paddle Game</h1>
+          <span class="runtime-badge badge-lts">Java 8</span>
+        </div>
+        <div class="header-right">
+          <button id="btn-fullscreen" class="btn-ctrl" type="button" title="Toggle Fullscreen">Fullscreen</button>
+          <button id="btn-restart" class="btn-ctrl" type="button" title="Restart Game">Restart</button>
+        </div>
+      </header>
+
+      <main class="player-main">
+        <div id="canvas-container" class="canvas-container">
+          <div id="cheerpj-display" class="cheerpj-display"></div>
+
+          <div id="overlay-start" class="overlay-card overlay-start">
+            <div class="overlay-content">
+              <div class="game-icon">Game</div>
+              <h2>Ready to Play Paddle Game</h2>
+              <p class="overlay-desc">Click to initialize the Java virtual machine and unlock audio.</p>
+              <dl class="game-meta">
+                <div><dt>JAR</dt><dd>PaddleGame.jar</dd></div>
+                <div><dt>Runtime</dt><dd>Java 8</dd></div>
+                <div><dt>Entry</dt><dd>keyboarddemo.LevelFrame</dd></div>
+              </dl>
+              <button id="btn-start" class="btn-action" type="button">Launch Game</button>
+              <div class="compat-notes">
+                <h3>Compatibility notes</h3>
+                <ul><li>Audio requires a browser user gesture. Some javax.sound.sampled / Clip formats may be unsupported by the browser backend.</li><li>Manifest Class-Path dependencies are served from the web root and loaded via /app/: lib/AbsoluteLayout.jar.</li><li>Requires external NetBeans &#x27;lib/AbsoluteLayout.jar&#x27; mounted into CheerpOS filesystem.</li><li>Ensure game startup waits for user click or initialize Web Audio context on user gesture.</li><li>Browser audio autoplay policy requires user interaction before audio starts.</li><li>Direct disk file operations access in-memory CheerpOS virtual filesystem (data resets on refresh unless indexedDB persistence is configured).</li></ul>
+              </div>
+            </div>
+          </div>
+
+          <div id="overlay-loading" class="overlay-card overlay-loading hidden">
+            <div class="overlay-content">
+              <div class="spinner"></div>
+              <h3 id="loading-heading">Initializing Runtime...</h3>
+              <p id="loading-subtext" class="loading-subtext">Preparing the CheerpJ 5.0 WebAssembly container</p>
+              <div class="progress-steps">
+                <span id="step-env" class="step step-active">1. Runtime</span>
+                <span id="step-deps" class="step">2. Dependencies</span>
+                <span id="step-jar" class="step">3. Game Code</span>
+                <span id="step-run" class="step">4. Launch</span>
+              </div>
+            </div>
+          </div>
+
+          <div id="overlay-error" class="overlay-card overlay-error hidden">
+            <div class="overlay-content">
+              <div class="error-icon">!</div>
+              <h3 id="error-title">Startup Failed</h3>
+              <p id="error-message" class="error-message"></p>
+              <div class="error-actions">
+                <button id="btn-retry" class="btn-action" type="button">Retry</button>
+                <button id="btn-dismiss" class="btn-secondary" type="button">Dismiss</button>
+                <button id="btn-copy-error" class="btn-secondary" type="button">Copy Details</button>
+              </div>
+              <pre id="error-details" class="error-details hidden"></pre>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <footer class="player-footer">
+        <div class="footer-info">
+          <span>Target: <code>PaddleGame.jar</code></span>
+          <span>Powered by <strong>Provikom Converter</strong> &amp; <strong>CheerpJ 5.0</strong></span>
+        </div>
+        <div class="footer-hints">
+          <span class="hint-keyboard">Click inside the canvas to focus keyboard controls</span>
+        </div>
+      </footer>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
