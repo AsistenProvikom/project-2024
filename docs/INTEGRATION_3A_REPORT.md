@@ -11,6 +11,7 @@ Converter reference: `java-converter` `main` at `de4a505`
 - Preserved the existing CheerpJ launcher path for Froggie Cross the Road, Minesweeper, Pong, and Snake.
 - Added a deterministic offline PR gate and kept external-cheerpJ browser checks in a separate manual workflow.
 - Added a fail-closed release gate for the existing GitHub Pages deployment.
+- Refreshed artifact ownership markers after adaptation while preserving each original `artifact_id`.
 - No converter adapter/compiler changes, JAR rewrites, production deployment, or merge were performed.
 
 The code is hardened for review. Publication is intentionally blocked until licensing and legacy visual acceptance are complete.
@@ -132,11 +133,11 @@ python3 tools/verify_offline.py
 
 ### GitHub Actions PR gate
 
-- Run: `https://github.com/AsistenProvikom/project-2024/actions/runs/44881323134`
-- Commit: `d8bd97c8ca12cb964ec99e1497a51d3583ade42e`
+- Marker-fix run: `https://github.com/AsistenProvikom/project-2024/actions/runs/44884953000`
+- Commit: `148da568cfa25f79dff5e81cee062f362f6ceaf3`
 - Result: **success**
-- `Static integrity and release gate`: **pass**, 6 seconds.
-- `Offline browser/catalog checks`: **pass**, 40 seconds.
+- `Static integrity and release gate`: **pass**, 9 seconds. This job also runs the ownership/adaptation regression tests.
+- `Offline browser/catalog checks`: **pass**, 32 seconds.
 - The external CDN workflow was not run as part of this PR gate and is not represented as a pass.
 
 ### External CDN browser suite
