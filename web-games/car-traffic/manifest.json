@@ -59,17 +59,18 @@
   },
   "paths": {
     "web_root": "/",
-    "virtual_mount_root": "/app/",
+    "virtual_mount_root": "/str/",
     "main_jar": "CarTraffic.jar",
-    "main_jar_virtual_path": "/app/CarTraffic.jar",
+    "main_jar_virtual_path": "/str/CarTraffic.jar",
     "class_path": [
-      "/app/CarTraffic.jar"
+      "/str/CarTraffic.jar"
     ]
   },
   "dependencies": [],
   "notes": [
     "Java 22 bytecode is executed on the Java 25 preview runtime. This path is experimental and may change with CheerpJ releases.",
-    "Archive security notice: Embedded archive detected: 'Final Project_Zidane Sindhu.jar' (8838 bytes)"
+    "Archive security notice: Embedded archive detected: 'Final Project_Zidane Sindhu.jar' (8838 bytes)",
+    "Pilot hosting adaptation: virtual paths use /str/ and dependency virtual paths are flattened for subdirectory hosting."
   ],
   "generated_files": [
     "index.html",
@@ -83,5 +84,12 @@
     "owner": "provikom-converter",
     "artifact_id": "a295c25bd80a43db81f57d11d79a1b67",
     "marker": ".provikom-artifact.json"
+  },
+  "pilot_adaptation": {
+    "schema_version": "1.0",
+    "tool": "tools/adapt_generated_artifact.py",
+    "mount_root": "/str/",
+    "dependency_virtual_paths_flattened": true,
+    "reason": "Artifact is hosted below /web-games/<slug>/ instead of the origin root."
   }
 }

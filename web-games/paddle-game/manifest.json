@@ -69,29 +69,30 @@
   },
   "paths": {
     "web_root": "/",
-    "virtual_mount_root": "/app/",
+    "virtual_mount_root": "/str/",
     "main_jar": "PaddleGame.jar",
-    "main_jar_virtual_path": "/app/PaddleGame.jar",
+    "main_jar_virtual_path": "/str/PaddleGame.jar",
     "class_path": [
-      "/app/PaddleGame.jar",
-      "/app/lib/AbsoluteLayout.jar"
+      "/str/PaddleGame.jar",
+      "/str/AbsoluteLayout.jar"
     ]
   },
   "dependencies": [
     {
       "relative_path": "lib/AbsoluteLayout.jar",
-      "virtual_path": "/app/lib/AbsoluteLayout.jar",
+      "virtual_path": "/str/AbsoluteLayout.jar",
       "size_bytes": 17218,
       "sha256": "cbe5600e86eb64761e11e4cb046804a070bc214e00b9fa61413b59017089dfd1"
     }
   ],
   "notes": [
     "Audio requires a browser user gesture. Some javax.sound.sampled / Clip formats may be unsupported by the browser backend.",
-    "Manifest Class-Path dependencies are served from the web root and loaded via /app/: lib/AbsoluteLayout.jar.",
+    "Manifest Class-Path dependencies are loaded from the artifact directory and mounted under /str/: lib/AbsoluteLayout.jar.",
     "Requires external NetBeans 'lib/AbsoluteLayout.jar' mounted into CheerpOS filesystem.",
     "Ensure game startup waits for user click or initialize Web Audio context on user gesture.",
     "Browser audio autoplay policy requires user interaction before audio starts.",
-    "Direct disk file operations access in-memory CheerpOS virtual filesystem (data resets on refresh unless indexedDB persistence is configured)."
+    "Direct disk file operations access in-memory CheerpOS virtual filesystem (data resets on refresh unless indexedDB persistence is configured).",
+    "Pilot hosting adaptation: virtual paths use /str/ and dependency virtual paths are flattened for subdirectory hosting."
   ],
   "generated_files": [
     "index.html",
@@ -106,5 +107,12 @@
     "owner": "provikom-converter",
     "artifact_id": "c1492d5a31294654b26f3454fc0684b2",
     "marker": ".provikom-artifact.json"
+  },
+  "pilot_adaptation": {
+    "schema_version": "1.0",
+    "tool": "tools/adapt_generated_artifact.py",
+    "mount_root": "/str/",
+    "dependency_virtual_paths_flattened": true,
+    "reason": "Artifact is hosted below /web-games/<slug>/ instead of the origin root."
   }
 }

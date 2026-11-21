@@ -1,19 +1,70 @@
 # Milestone 3A — Generated Player Pilot Integration
 
-Date: 2026-11-20  
-Branch: `feature/converter-pilot-integration`  
-Base commit: `cf35f7def1333bf05b3de22206e803567bc7de3b`  
+Date: 2026-11-21
+Branch: `feature/converter-pilot-integration`
+Base commit: `cf35f7def1333bf05b3de22206e803567bc7de3b`
 Converter reference: `java-converter` `main` at `de4a505`
 
 ## Outcome
 
 - Integrated generated CheerpJ players for Car Traffic, Flappy Bird, and Paddle Game.
 - Preserved the existing CheerpJ launcher path for Froggie Cross the Road, Minesweeper, Pong, and Snake.
-- Automated Chromium verification passed all 53 checks; evidence is in `docs/verification/3a-integration.json`.
-- Docker image builds and serves the portal and generated artifacts with HTTP 200/206 responses.
+- Added a deterministic offline PR gate and kept external-cheerpJ browser checks in a separate manual workflow.
+- Added a fail-closed release gate for the existing GitHub Pages deployment.
 - No converter adapter/compiler changes, JAR rewrites, production deployment, or merge were performed.
 
-The generated player path is usable for the pilot. Remaining limitations are listed below, most notably external CheerpJ CDN availability, legacy-game visual verification, and licensing review.
+The code is hardened for review. Publication is intentionally blocked until licensing and legacy visual acceptance are complete.
+
+## Hardening Pass
+
+### 1. Pull-request CI gate
+
+- `.github/workflows/pilot-integrity.yml` runs on `pull_request`.
+- `tools/verify_static.py` checks source hashes, catalog entries, artifact files, `/str/` manifests, runtime consistency, release-gate behavior, DOM-injection sinks, and workflow separation without network access.
+- `tools/verify_offline.py` runs Chromium with all external requests aborted. It checks gallery rendering, metadata-injection safety, generated-path rejection, iframe lifecycle, and same-origin/cross-origin attributes.
+- `.github/workflows/pilot-browser-cdn.yml` is `workflow_dispatch` only and runs `tools/verify_pilot.py`. It is not a PR pass and no skipped CDN check is represented as successful.
+
+### 2. Manifest and `/str/` consistency
+
+- All generated manifests now describe the actual runtime:
+  - `paths.virtual_mount_root` is `/str/`.
+  - `paths.main_jar_virtual_path` is `/str/<main>.jar`.
+  - `paths.class_path` uses `/str/` only.
+  - dependency `virtual_path` values are flattened under `/str/`.
+- `tools/adapt_generated_artifact.py` applies the adaptation after regeneration and supports `--check`.
+- `--check` is part of the static PR gate, so a regenerated, non-adapted artifact fails CI.
+- The adapter was tested against fresh converter output for Car Traffic and Paddle Game, including Paddle's nested `lib/AbsoluteLayout.jar` dependency.
+
+### 3. Iframe trust boundary and isolation
+
+- Same-origin mode is now described as a **trusted-content lifecycle boundary**, not security isolation. `allow-scripts` plus `allow-same-origin` cannot isolate same-origin content.
+- Same-origin sandbox tokens were reduced to `allow-scripts allow-same-origin`; forms, modals, downloads, and clipboard access were removed.
+- Optional cross-origin mode is implemented through `data/player-config.json`:
+  - Set `generatedOrigin` to an absolute separate origin.
+  - The iframe then omits `allow-same-origin`, uses `referrerPolicy="no-referrer"`, and is marked `data-isolation="cross-origin"`.
+  - The generated origin must serve `/web-games/` with CORS headers. `nginx.conf` now provides them, including `OPTIONS 204`.
+- The default remains same-origin because GitHub Pages cannot supply a second origin automatically. Only repository-controlled generated artifacts are permitted.
+
+### 4. Legacy coverage
+
+- Automated legacy checks now explicitly cover **launcher, snapshot, Stop, and Back** only.
+- Evidence includes `verification_scope.legacy_gameplay = "not verified by this script"`.
+- Snake's legacy window launches but is visually blank in the captured screenshot. This is recorded as an unresolved gameplay limitation, not a gameplay pass.
+- Froggie, Minesweeper, Pong, and Snake gameplay still require manual acceptance.
+
+### 5. Production publication gate
+
+- `.github/workflows/pages.yml` preserves the existing Pages deployment steps but adds a `release-gate` job.
+- `deploy` depends on `release-gate`, and `tools/check_release_gate.py` fails closed unless repository variable `PILOT_RELEASE_APPROVED` is exactly `"true"`.
+- Tested locally: unset, `false`, and `1` all block; `true` opens the gate.
+- Do not set the variable until licensing/redistribution approval, CheerpJ Community Edition usage approval, and legacy visual acceptance are complete.
+
+### 6. Catalog rendering
+
+- Removed all dynamic `innerHTML`, `outerHTML`, `insertAdjacentHTML`, and `document.write` usage from `script.js`.
+- Catalog cards are built with DOM APIs and `textContent`.
+- Image paths are restricted to safe local relative paths; unsafe values fall back to `./images/default.png`.
+- Offline regression test injects malicious name, description, image, and title metadata and confirms no script executes and no injected SVG/script/image node appears.
 
 ## Artifacts
 
@@ -38,36 +89,48 @@ The generated players were built with the existing converter CLI and then adapte
 
 - Generated players assume CheerpJ `/app/` maps to the origin root. Under `/web-games/<slug>/`, CheerpJ requested `/CarTraffic.jar` and failed with `ClassNotFoundException: main.Main`.
 - `overrideDocumentBase` was attempted and rejected because it caused `TypeError: Cannot read properties of null (reading 'f0')`.
-- Each generated `app.js` now fetches its game files relative to the artifact directory and installs them with `cheerpOSAddStringFile` under `/str/`.
+- The adapted `app.js` fetches files relative to the artifact directory and installs them with `cheerpOSAddStringFile` under `/str/`.
 - Paddle's `AbsoluteLayout.jar` is flattened to `/str/AbsoluteLayout.jar`; `cheerpOSAddStringFile` does not accept nested directories such as `/str/lib/AbsoluteLayout.jar`.
-- Paddle's runtime classpath was updated to the flattened virtual path. The original generated dependency remains available under `web-games/paddle-game/lib/AbsoluteLayout.jar` for Range-serving verification.
+- The original generated dependency remains available under `web-games/paddle-game/lib/AbsoluteLayout.jar` for Range-serving verification.
 
-These edits are artifact-local. Re-running the converter will regenerate `app.js` and require the same adaptation unless the converter is changed in a later milestone.
+Regeneration workflow:
+
+```bash
+python3 tools/adapt_generated_artifact.py \
+  web-games/car-traffic web-games/flappy web-games/paddle-game
+python3 tools/adapt_generated_artifact.py --check \
+  web-games/car-traffic web-games/flappy web-games/paddle-game
+```
 
 ## Portal Integration
 
 - `data/games.json` declares `player.mode` as `generated` or `legacy`; generated games also declare `player.entry`.
-- Generated games load in a same-origin iframe only after the user selects Play. No generated JavaScript is loaded on the gallery.
-- Generated entry paths must start with `web-games/`, may not be absolute or contain `..`/backslashes, and must remain on the portal origin.
+- Generated games load in an iframe only after the user selects Play. No generated JavaScript is loaded on the gallery.
+- Generated entry paths must start with `web-games/`, may not be absolute or contain `..`/backslashes, and must remain under the generated root.
 - Session counters and teardown guards prevent stale async legacy launches from replacing a newer generated session.
 - Stop, Back, game switching, and restart remove generated iframes and clear legacy applet content.
-- The legacy CheerpJ launcher path remains available for the four non-pilot games.
 
-## Automated Verification
+## Verification Results
 
-Command:
+### Offline PR gate
+
+```bash
+python3 tools/verify_static.py
+python3 tools/verify_offline.py
+```
+
+- Static integrity: **68/68 passed**.
+- Offline Chromium: **20/20 passed**.
+- External network: blocked during the offline browser run.
+- Static checks include release-gate fail-closed and pass-open behavior.
+
+### External CDN browser suite
 
 ```bash
 python3 tools/verify_pilot.py
 ```
 
-The script serves the repository with HTTP Range support, drives Chromium via Playwright, writes screenshots, and records machine-readable evidence. Evidence generated at `2026-11-20T10:21:41Z`:
-
-- Total checks: 53
-- Passed: 53
-- Failed: 0
-- Page errors: none
-- Evidence: `docs/verification/3a-integration.json`
+Latest successful local run: **53/53 checks passed**. Evidence was regenerated at `2026-11-21T07:33:29Z`.
 
 Coverage includes:
 
@@ -77,9 +140,18 @@ Coverage includes:
 - Flappy generated launch, canvas mount, menu render, PLAY transition, Stop, and Back teardown.
 - Paddle generated launch, level selection, Easy-mode transition, dependency Range request, Stop, and Back teardown.
 - Paddle `AbsoluteLayout.jar` Range response: HTTP 206 with `Accept-Ranges: bytes`.
-- Snake legacy launcher, Stop cleanup, and Back navigation.
+- Snake legacy launcher surface, snapshot, Stop cleanup, and Back navigation.
 - Source hash preservation and absence of fatal console/page errors.
 - Pong was not launched; the catalog discloses its known browser-audio/runtime limitation.
+
+Evidence: `docs/verification/3a-integration.json`.
+
+### Docker
+
+- `docker build -t java-game-portal:3a-hardening .` succeeds.
+- `/web-games/car-traffic/index.html` returns HTTP 200 with CORS and `Cross-Origin-Resource-Policy: cross-origin`.
+- Paddle dependency Range request returns HTTP 206 with `Content-Range: bytes 0-1/17218`.
+- `OPTIONS /web-games/car-traffic/index.html` returns HTTP 204 with the expected CORS headers.
 
 ### Screenshots
 
@@ -98,47 +170,21 @@ Coverage includes:
 - Car Traffic generated menu renders and responds to interaction.
 - Flappy generated menu and PLAY gameplay render.
 - Paddle level selection and Easy gameplay render.
-- Snake's legacy window appeared mostly blank in the review screenshot. The automated test confirms the legacy launcher/teardown path, not full visual gameplay.
-- Froggie, Minesweeper, and Pong were not visually confirmed in this milestone. Pong remains legacy-only with its limitation disclosed.
+- Snake's legacy window launches but appears mostly blank; gameplay remains unverified.
+- Froggie, Minesweeper, and Pong were not visually confirmed in this milestone.
 
 No claim is made that all legacy games are visually fully playable in the browser.
 
-## Docker and HTTP Checks
+## Known Limitations and Blockers
 
-- `docker build -t java-game-portal:3a .` succeeds.
-- Container runs as `java-game-portal-3a` on `127.0.0.1:18084`.
-- `/` returns HTTP 200.
-- `/web-games/car-traffic/index.html` returns HTTP 200.
-- A Range request for `/web-games/paddle-game/lib/AbsoluteLayout.jar` returns HTTP 206 with `Content-Range: bytes 0-1/17218`.
-- Generated directories were created with restrictive permissions, causing an initial Nginx 403. This was fixed in the source tree and in the image with `chmod -R a+rX /usr/share/nginx/html/web-games`.
-- A final Docker browser smoke attempt reached the generated player but the external CheerpJ CDN stalled while repeatedly loading `https://cjrtnc.leaningtech.com/5.0/25/lib/modules`. The same stall occurred outside Docker, so it is not treated as a container defect. No invalid Docker screenshot is retained.
-
-## Known Limitations and Follow-up
-
-- CheerpJ CDN availability is an external dependency. `tools/verify_pilot.py` retries up to five times because replies such as `Failed to fetch dynamically imported module: https://cjrtnc.leaningtech.com/5.0/cj3.js` occur intermittently.
-- Legacy visual gameplay for Froggie, Minesweeper, Pong, and Snake needs separate manual acceptance.
-- Pong's browser audio limitation is disclosed in the catalog; it was not converted in this milestone.
-- Generated files duplicate the original JARs. Redistribution and CheerpJ Community Edition licensing require review before publication. CheerpJ Community Edition is documented for personal and non-business use only.
-- The generated iframe uses both `allow-scripts` and `allow-same-origin` because the CheerpJ runtime requires same-origin behavior. Browsers warn that this combination can escape sandboxing; the iframe only loads repository-controlled artifacts.
-- No CI workflow was added. Automated verification currently requires local Chromium/Playwright and network access to the CheerpJ CDN.
-
-## Reproduction
-
-```bash
-cd /home/hafidz/project/java-converter
-python3 -m provikom_converter build /home/hafidz/project/project-2024/games/CarTraffic.jar \
-  --backend cheerpj --output /home/hafidz/project/project-2024/web-games/car-traffic \
-  --title "Car Traffic"
-
-cd /home/hafidz/project/project-2024
-python3 tools/verify_pilot.py
-
-docker build -t java-game-portal:3a .
-docker run --rm -d --name java-game-portal-3a -p 18084:8080 java-game-portal:3a
-```
-
-The Flappy and Paddle builds use the same command with their respective JAR paths and output directories. Artifact-local `app.js` adaptations must be preserved after regeneration.
+- **Blocker — licensing/redistribution:** generated files duplicate the original JARs. Redistribution permission and CheerpJ Community Edition licensing must be approved before publication.
+- **Blocker — legacy acceptance:** legacy gameplay, especially Snake's blank window, still needs manual acceptance.
+- **Release gate:** `PILOT_RELEASE_APPROVED` must remain unset/false until the blockers are resolved. Merging to `main` will not deploy while the gate is closed.
+- CheerpJ CDN availability is an external dependency. CDN browser checks are manual and can fail independently of the deterministic PR gate.
+- Same-origin generated content is trusted code. The iframe is not a security boundary unless the optional separate-origin mode is configured.
+- Pong's browser audio limitation is disclosed; it remains legacy-only.
+- No auto-merge or deployment is included in this PR.
 
 ## Final Status
 
-Milestone 3A is ready for review as a pilot integration. Do not merge or deploy until the PR review, legacy visual acceptance, and licensing review are complete.
+The PR is code-reviewed and locally tested, but it is **not safe to publish** until licensing and legacy visual acceptance are complete. The fail-closed release gate prevents accidental GitHub Pages publication. Do not merge with the intent to deploy until the blockers above are cleared and the post-push CI result is confirmed.

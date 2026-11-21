@@ -16,6 +16,8 @@ files served over HTTP.
 - [Accessing the server from Windows](#accessing-the-server-from-windows)
 - [Using Docker instead of Podman](#using-docker-instead-of-podman)
 - [Verification](#verification)
+- [Generated-player pilot](#generated-player-pilot)
+- [CI checks](#ci-checks)
 - [Troubleshooting](#troubleshooting)
 - [Deployment](#deployment)
 
@@ -40,15 +42,21 @@ files served over HTTP.
 ├── style.css
 ├── script.js             # CheerpJ runtime + game launcher
 ├── data/games.json       # Game catalog
+├── data/player-config.json # Optional separate-origin generated player setting
 ├── games/                # Java .jar games (+ games/lib dependencies)
+├── web-games/            # Generated CheerpJ pilot artifacts
+├── docs/                 # Integration report and verification evidence
+├── tools/                # Static/offline/CDN verification and adaptation tools
 ├── images/               # Card images
 ├── Dockerfile            # nginx image for production
-├── nginx.conf            # Listens on 8080, caches /games/
+├── nginx.conf            # Listens on 8080, caches /games/ and /web-games/
 ├── .dockerignore
 └── .ddev/config.yaml     # Local development environment (not in the image)
 ```
 
-The catalog is `data/games.json`; `script.js` fetches each JAR from `games/<file>`.
+The catalog is `data/games.json`. Legacy entries load JARs from `games/<file>`;
+generated entries load `web-games/<slug>/index.html` in an iframe. Generated files
+assume CheerpOS paths under `/str/` and are adapted for subdirectory hosting.
 
 ---
 
@@ -224,6 +232,38 @@ On Windows PowerShell, use `curl.exe` (the `curl` alias maps to `Invoke-WebReque
 
 ---
 
+## Generated-player pilot
+
+Generated artifacts are produced by the converter and then adapted for hosting below
+`/web-games/<slug>/`. Re-run the adaptation after every regeneration:
+
+```bash
+python3 tools/adapt_generated_artifact.py \
+  web-games/car-traffic web-games/flappy web-games/paddle-game
+python3 tools/adapt_generated_artifact.py --check web-games/car-traffic
+```
+
+`--check` is part of the offline PR gate. The adapted manifests now describe the
+actual `/str/` mount and flattened dependency paths.
+
+By default the generated player stays on the portal origin. The iframe is therefore
+a lifecycle boundary, not a security sandbox: only repository-controlled generated
+artifacts may be used there. Set `generatedOrigin` in `data/player-config.json` to an
+absolute, separate origin to use cross-origin mode, where the iframe omits
+`allow-same-origin`. That origin must serve `/web-games/` with CORS headers; the
+provided `nginx.conf` includes them.
+
+## CI checks
+
+- `.github/workflows/pilot-integrity.yml` is the pull-request gate. It runs
+  `tools/verify_static.py` (no network) and `tools/verify_offline.py` (Chromium with
+  external network blocked). These checks are deterministic and do not require CheerpJ.
+- `.github/workflows/pilot-browser-cdn.yml` is manual-only. It runs
+  `tools/verify_pilot.py`, requires the external CheerpJ CDN, and is never counted as
+  a PR pass.
+- `tools/verify_pilot.py` verifies generated gameplay and legacy launcher/teardown.
+  Legacy gameplay remains a manual acceptance item.
+
 ## Troubleshooting
 
 | Symptom | Cause / fix |
@@ -240,10 +280,15 @@ On Windows PowerShell, use `curl.exe` (the `curl` alias maps to `Invoke-WebReque
 
 ## Deployment
 
-- **GitHub Pages:** `.github/workflows/pages.yml` deploys the repository root on every
-  push to `main`. The static layout there matches the app's `games/` paths.
+- **GitHub Pages:** `.github/workflows/pages.yml` preserves the existing Pages
+  deployment, but it now starts with a fail-closed `release-gate` job. Publication
+  requires the repository variable `PILOT_RELEASE_APPROVED=true` after licensing,
+  redistribution, and legacy visual acceptance are complete.
 - **Container host:** build and run with Podman as described above. The image is
   stateless and can be rebuilt from any commit.
+
+Do not set `PILOT_RELEASE_APPROVED` just to make a workflow green. Without it, the
+Pages deployment job is skipped because the gate fails first.
 
 ---
 

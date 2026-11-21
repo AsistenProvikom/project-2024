@@ -39,7 +39,7 @@
               <button id="btn-start" class="btn-action" type="button">Launch Game</button>
               <div class="compat-notes">
                 <h3>Compatibility notes</h3>
-                <ul><li>Audio requires a browser user gesture. Some javax.sound.sampled / Clip formats may be unsupported by the browser backend.</li><li>Manifest Class-Path dependencies are served from the web root and loaded via /app/: lib/AbsoluteLayout.jar.</li><li>Requires external NetBeans &#x27;lib/AbsoluteLayout.jar&#x27; mounted into CheerpOS filesystem.</li><li>Ensure game startup waits for user click or initialize Web Audio context on user gesture.</li><li>Browser audio autoplay policy requires user interaction before audio starts.</li><li>Direct disk file operations access in-memory CheerpOS virtual filesystem (data resets on refresh unless indexedDB persistence is configured).</li></ul>
+                <ul><li>Audio requires a browser user gesture. Some javax.sound.sampled / Clip formats may be unsupported by the browser backend.</li><li>Manifest Class-Path dependencies are loaded from the artifact directory and mounted under /str/: lib/AbsoluteLayout.jar.</li><li>Requires external NetBeans &#x27;lib/AbsoluteLayout.jar&#x27; mounted into CheerpOS filesystem.</li><li>Ensure game startup waits for user click or initialize Web Audio context on user gesture.</li><li>Browser audio autoplay policy requires user interaction before audio starts.</li><li>Direct disk file operations access in-memory CheerpOS virtual filesystem (data resets on refresh unless indexedDB persistence is configured).</li></ul>
               </div>
             </div>
           </div>

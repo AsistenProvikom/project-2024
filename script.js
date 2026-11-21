@@ -2,12 +2,14 @@
 
 const GENERATED_PREFIX = "web-games/";
 const GENERATED_LOAD_TIMEOUT_MS = 30000;
+const DEFAULT_IMAGE = "./images/default.png";
 
 let cheerpjReady = false;
 let cheerpjFontLogFilterInstalled = false;
 let activeSession = 0;
 let generatedFrame = null;
 let generatedFrameCleanup = null;
+let generatedOrigin = "";
 
 const GAME_DEPENDENCIES = {
   "PaddleGame.jar": ["lib/AbsoluteLayout.jar"],
@@ -102,6 +104,30 @@ function isCurrentSession(session) {
   return session === activeSession;
 }
 
+function normalizeGeneratedOrigin(value) {
+  if (typeof value !== "string" || !value.trim()) return "";
+  const parsed = new URL(value.trim());
+  if (!["http:", "https:"].includes(parsed.protocol)) {
+    throw new Error("Origin pemutar generated harus memakai HTTP atau HTTPS.");
+  }
+  if (parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    throw new Error("Origin pemutar generated hanya boleh berisi skema, host, dan port.");
+  }
+  return parsed.origin + "/";
+}
+
+async function loadPlayerConfig() {
+  try {
+    const response = await fetch("data/player-config.json", { cache: "no-store" });
+    if (!response.ok) return;
+    const config = await response.json();
+    generatedOrigin = normalizeGeneratedOrigin(config.generatedOrigin);
+  } catch (error) {
+    console.error("[Portal] Invalid player configuration:", error);
+    generatedOrigin = "";
+  }
+}
+
 function resolvePlayer(game) {
   const player = game.player && typeof game.player === "object" ? game.player : {};
 
@@ -117,15 +143,22 @@ function resolvePlayer(game) {
       throw new Error("Path artifact game generated tidak valid.");
     }
 
-    const frameUrl = new URL(entry, document.baseURI);
-    if (frameUrl.origin !== window.location.origin) {
-      throw new Error("Artifact game generated harus berada di origin yang sama.");
+    const baseUrl = generatedOrigin || document.baseURI;
+    const frameUrl = new URL(entry, baseUrl);
+    const generatedRoot = new URL(GENERATED_PREFIX, baseUrl);
+    if (frameUrl.origin !== generatedRoot.origin || !frameUrl.pathname.startsWith(generatedRoot.pathname)) {
+      throw new Error("Artifact game generated keluar dari direktori pemutar yang diizinkan.");
     }
 
-    return { mode: "generated", entry, frameUrl };
+    return {
+      mode: "generated",
+      entry,
+      frameUrl,
+      crossOrigin: frameUrl.origin !== window.location.origin,
+    };
   }
 
-  return { mode: "legacy" };
+  return { mode: "legacy", crossOrigin: false };
 }
 
 async function loadGameJar(jarFile) {
@@ -183,11 +216,14 @@ function runGeneratedGame(player, gameName, session) {
     frame.className = "generated-frame";
     frame.title = `Pemutar game ${gameName}`;
     frame.loading = "eager";
-    frame.referrerPolicy = "same-origin";
-    frame.setAttribute("allow", "autoplay; fullscreen; clipboard-write; gamepad");
+    frame.referrerPolicy = player.crossOrigin ? "no-referrer" : "same-origin";
+    frame.setAttribute("allow", "autoplay; fullscreen; gamepad");
+    frame.dataset.isolation = player.crossOrigin ? "cross-origin" : "same-origin-trusted";
     frame.setAttribute(
       "sandbox",
-      "allow-scripts allow-same-origin allow-forms allow-modals allow-downloads allow-pointer-lock"
+      player.crossOrigin
+        ? "allow-scripts allow-pointer-lock"
+        : "allow-scripts allow-same-origin"
     );
 
     let settled = false;
@@ -241,7 +277,10 @@ async function playGame(game) {
 
   try {
     if (player.mode === "generated") {
-      showLoading(`Memuat ${game.name}...`, "Menyiapkan pemutar web terisolasi...");
+      const isolationHint = player.crossOrigin
+        ? "Menyiapkan pemutar web pada origin terpisah..."
+        : "Menyiapkan pemutar web dari origin tepercaya...";
+      showLoading(`Memuat ${game.name}...`, isolationHint);
       await runGeneratedGame(player, game.name, session);
       return;
     }
@@ -270,53 +309,139 @@ function goBack() {
   showGallery();
 }
 
+function safeImageSource(value) {
+  if (typeof value !== "string") return DEFAULT_IMAGE;
+  const candidate = value.trim();
+  const hasScheme = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(candidate);
+  if (
+    !candidate ||
+    candidate.startsWith("//") ||
+    candidate.startsWith("/") ||
+    candidate.includes("..") ||
+    candidate.includes("\\") ||
+    hasScheme ||
+    !/^[A-Za-z0-9._~!$&()*+,;=:@%/-]+$/.test(candidate)
+  ) {
+    return DEFAULT_IMAGE;
+  }
+  return candidate;
+}
+
+function gameText(value, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function showSkeleton(list) {
+  const grid = document.createElement("div");
+  grid.className = "skeleton-grid";
+  for (let index = 0; index < 6; index += 1) {
+    const card = document.createElement("div");
+    card.className = "skeleton-card";
+    grid.appendChild(card);
+  }
+  list.replaceChildren(grid);
+}
+
+function showCatalogError(list, error) {
+  const panel = document.createElement("div");
+  panel.className = "error-panel";
+
+  const heading = document.createElement("h3");
+  heading.textContent = "Gagal memuat daftar game";
+
+  const message = document.createElement("p");
+  message.textContent = error && error.message ? error.message : String(error);
+
+  const retry = document.createElement("button");
+  retry.className = "btn btn-play";
+  retry.type = "button";
+  retry.textContent = "Coba lagi";
+  retry.addEventListener("click", loadGames);
+
+  panel.append(heading, message, retry);
+  list.replaceChildren(panel);
+}
+
+function createGameCard(game, index) {
+  if (!game || typeof game !== "object") return null;
+  const name = gameText(game.name, "Game");
+  const description = gameText(game.description);
+  const playerMode = game.player && game.player.mode === "generated" ? "generated" : "legacy";
+
+  const card = document.createElement("div");
+  card.className = "game-card";
+  card.dataset.playerMode = playerMode;
+  card.style.animationDelay = `${index * 60}ms`;
+
+  const imageWrap = document.createElement("div");
+  imageWrap.className = "card-image-wrap";
+
+  const image = document.createElement("img");
+  image.className = "card-image";
+  image.src = safeImageSource(game.image);
+  image.alt = name;
+  image.loading = "lazy";
+  image.addEventListener("error", () => {
+    if (image.src !== new URL(DEFAULT_IMAGE, document.baseURI).href) {
+      image.src = DEFAULT_IMAGE;
+    }
+  });
+
+  const overlay = document.createElement("div");
+  overlay.className = "card-overlay";
+  const bigPlay = document.createElement("button");
+  bigPlay.className = "btn btn-play-big";
+  bigPlay.type = "button";
+  bigPlay.textContent = "▶ Main";
+  overlay.appendChild(bigPlay);
+  imageWrap.append(image, overlay);
+
+  const body = document.createElement("div");
+  body.className = "card-body";
+
+  const title = document.createElement("h3");
+  title.title = name;
+  title.textContent = name;
+  body.appendChild(title);
+
+  if (description) {
+    const desc = document.createElement("p");
+    desc.className = "card-desc";
+    desc.textContent = description;
+    body.appendChild(desc);
+  }
+
+  const play = document.createElement("button");
+  play.className = "btn btn-play";
+  play.type = "button";
+  play.textContent = "▶ Mainkan";
+  body.appendChild(play);
+
+  const start = () => playGame(game);
+  bigPlay.addEventListener("click", start);
+  play.addEventListener("click", start);
+
+  card.append(imageWrap, body);
+  return card;
+}
+
 async function loadGames() {
   const list = document.getElementById("game-list");
-  list.innerHTML =
-    `<div class="skeleton-grid">${"<div class='skeleton-card'></div>".repeat(6)}</div>`;
+  showSkeleton(list);
 
   try {
+    await loadPlayerConfig();
     const response = await fetch("data/games.json");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
     const games = await response.json();
-    list.innerHTML = "";
+    if (!Array.isArray(games)) throw new Error("Format katalog game tidak valid.");
 
-    games.forEach((game, index) => {
-      const card = document.createElement("div");
-      card.className = "game-card";
-      card.dataset.playerMode = game.player && game.player.mode === "generated"
-        ? "generated"
-        : "legacy";
-      card.style.animationDelay = `${index * 60}ms`;
-      card.innerHTML = `
-        <div class="card-image-wrap">
-          <img class="card-image" src="${game.image || "./images/default.png"}"
-               alt="${game.name}" loading="lazy"
-               onerror="this.src='./images/default.png'" />
-          <div class="card-overlay">
-            <button class="btn btn-play-big" type="button">▶ Main</button>
-          </div>
-        </div>
-        <div class="card-body">
-          <h3 title="${game.name}">${game.name}</h3>
-          ${game.description ? `<p class="card-desc">${game.description}</p>` : ""}
-          <button class="btn btn-play" type="button">▶ Mainkan</button>
-        </div>`;
-
-      const start = () => playGame(game);
-      card.querySelector(".btn-play-big").addEventListener("click", start);
-      card.querySelector(".btn-play").addEventListener("click", start);
-      list.appendChild(card);
-    });
+    const cards = games.map((game, index) => createGameCard(game, index)).filter(Boolean);
+    list.replaceChildren(...cards);
   } catch (error) {
     console.error("[Portal] Failed to load games:", error);
-    list.innerHTML = `
-      <div class="error-panel">
-        <h3>Gagal memuat daftar game</h3>
-        <p>${error.message}</p>
-        <button class="btn btn-play" type="button" onclick="loadGames()">Coba lagi</button>
-      </div>`;
+    showCatalogError(list, error);
   }
 }
 
