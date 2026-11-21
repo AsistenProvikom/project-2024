@@ -29,4 +29,4 @@ dist/
 build/
 *.log
 
-# Docker build cache (jangan exclude games/ karena diperlukan di image)
+# Docker build cache (jangan exclude games/ atau web-games/ karena diperlukan di image)

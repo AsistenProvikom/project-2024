@@ -15,7 +15,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-gate:
+    name: Require explicit release approval
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require explicit release approval
+        env:
+          PILOT_RELEASE_APPROVED: ${{ vars.PILOT_RELEASE_APPROVED }}
+        run: python3 tools/check_release_gate.py
+
   deploy:
+    needs: release-gate
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

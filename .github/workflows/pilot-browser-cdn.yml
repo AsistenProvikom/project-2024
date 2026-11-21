@@ -1,0 +1,49 @@
+name: External CDN browser verification (manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      justification:
+        description: Why the external CheerpJ browser verification is being run
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pilot-browser-cdn
+  cancel-in-progress: false
+
+jobs:
+  cdn-browser:
+    name: CheerpJ CDN browser checks (not a PR pass)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Playwright and image checks
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install playwright pillow
+          python -m playwright install --with-deps chromium
+
+      - name: Run external CheerpJ browser checks
+        run: python3 tools/verify_pilot.py
+
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pilot-cdn-evidence
+          if-no-files-found: warn
+          path: |
+            docs/verification/3a-integration.json
+            docs/screenshots/3a-*.png

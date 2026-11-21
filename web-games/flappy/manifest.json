@@ -1,0 +1,94 @@
+{
+  "schema_version": "1.1",
+  "generated_at": "2026-11-20T09:26:34Z",
+  "provikom_converter_version": "0.1.0",
+  "backend": "cheerpj",
+  "backend_display_name": "CheerpJ 5.0",
+  "runtime_version": 25,
+  "is_experimental": true,
+  "runtime": {
+    "version": 25,
+    "label": "Java 25 (Experimental Preview Candidate)",
+    "experimental": true,
+    "selection_reason": "Java 22 bytecode (major 66) mapped to the Java 25 preview runtime. This target is experimental."
+  },
+  "entry_point": "index.html",
+  "jar_file": "flappy.jar",
+  "java_major_version": 66,
+  "lifecycle": {
+    "state": "built",
+    "prediction_only": true,
+    "execution_verified": false,
+    "source": "artifact_generation",
+    "verification": {
+      "state": "not_run",
+      "automated": false,
+      "manual": false
+    }
+  },
+  "game": {
+    "title": "Flappy Bird",
+    "jar_file": "flappy.jar",
+    "sha256": "c788986652405b12962066c61fc2c3cfe843335a6e3a4ae4ef6f4d3a0de4b0ea",
+    "size_bytes": 83462,
+    "main_class": "MainMenu",
+    "entry_point_source": "manifest",
+    "entry_point_candidates": [],
+    "java_major_version": 66,
+    "java_version": "Java 22",
+    "has_audio": false,
+    "gui_apis": [
+      "Java AWT",
+      "Java Swing"
+    ],
+    "audio_apis": []
+  },
+  "compatibility": {
+    "status": "supported",
+    "summary": "CheerpJ supports this JAR directly with high expected compatibility.",
+    "confidence_score": 0.92,
+    "verified_capabilities": [
+      "Accepts compiled binary JAR input directly without source code.",
+      "Bytecode major version 66 (Java 22) is supported by CheerpJ 5.0 runtime.",
+      "CheerpJ provides client-side OpenJDK AWT/Swing canvas rendering."
+    ],
+    "assumptions_and_risks": [],
+    "blockers": [],
+    "workarounds_needed": [],
+    "remediation_steps": []
+  },
+  "paths": {
+    "web_root": "/",
+    "virtual_mount_root": "/str/",
+    "main_jar": "flappy.jar",
+    "main_jar_virtual_path": "/str/flappy.jar",
+    "class_path": [
+      "/str/flappy.jar"
+    ]
+  },
+  "dependencies": [],
+  "notes": [
+    "Java 22 bytecode is executed on the Java 25 preview runtime. This path is experimental and may change with CheerpJ releases.",
+    "Pilot hosting adaptation: virtual paths use /str/ and dependency virtual paths are flattened for subdirectory hosting."
+  ],
+  "generated_files": [
+    "index.html",
+    "style.css",
+    "app.js",
+    "manifest.json",
+    ".provikom-artifact.json",
+    "flappy.jar"
+  ],
+  "ownership": {
+    "owner": "provikom-converter",
+    "artifact_id": "abaee5c628ee40628c0e67ee61b2ed5e",
+    "marker": ".provikom-artifact.json"
+  },
+  "pilot_adaptation": {
+    "schema_version": "1.0",
+    "tool": "tools/adapt_generated_artifact.py",
+    "mount_root": "/str/",
+    "dependency_virtual_paths_flattened": true,
+    "reason": "Artifact is hosted below /web-games/<slug>/ instead of the origin root."
+  }
+}
