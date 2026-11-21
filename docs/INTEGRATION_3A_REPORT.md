@@ -124,6 +124,15 @@ python3 tools/verify_offline.py
 - External network: blocked during the offline browser run.
 - Static checks include release-gate fail-closed and pass-open behavior.
 
+### GitHub Actions PR gate
+
+- Run: `https://github.com/AsistenProvikom/project-2024/actions/runs/44881323134`
+- Commit: `d8bd97c8ca12cb964ec99e1497a51d3583ade42e`
+- Result: **success**
+- `Static integrity and release gate`: **pass**, 6 seconds.
+- `Offline browser/catalog checks`: **pass**, 40 seconds.
+- The external CDN workflow was not run as part of this PR gate and is not represented as a pass.
+
 ### External CDN browser suite
 
 ```bash
@@ -187,4 +196,4 @@ No claim is made that all legacy games are visually fully playable in the browse
 
 ## Final Status
 
-The PR is code-reviewed and locally tested, but it is **not safe to publish** until licensing and legacy visual acceptance are complete. The fail-closed release gate prevents accidental GitHub Pages publication. Do not merge with the intent to deploy until the blockers above are cleared and the post-push CI result is confirmed.
+The PR is code-reviewed, locally tested, and its hardening commit passed the offline PR gate. It is **not safe to publish** until licensing and legacy visual acceptance are complete. The fail-closed release gate prevents accidental GitHub Pages publication. Do not merge with the intent to deploy until the blockers above are cleared.
