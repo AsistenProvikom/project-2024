@@ -10,13 +10,17 @@ Run after every artifact regeneration:
     python3 tools/adapt_generated_artifact.py web-games/car-traffic
     python3 tools/adapt_generated_artifact.py --check web-games/car-traffic
 
-This tool is intentionally artifact-local; it does not modify the converter.
+This tool is intentionally artifact-local; it does not modify the converter. It
+validates and refreshes the converter ownership marker after manifest changes so the
+marker SHA always matches the current raw manifest bytes without changing artifact
+identity.
 """
 
 from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import posixpath
 import re
@@ -25,6 +29,9 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 MOUNT_ROOT = "/str/"
+MARKER_FILENAME = ".provikom-artifact.json"
+MARKER_SCHEMA_VERSION = "1.0"
+MARKER_OWNER = "provikom-converter"
 CONFIG_PATTERN = re.compile(r"const CONFIG = (\{.*?\n\});", re.DOTALL)
 
 ASSERT_BLOCK = """async function assertFileAvailable(relativePath) {
@@ -197,10 +204,120 @@ def adapted_index_html(index_html: str) -> str:
     return index_html.replace(OLD_DEPENDENCY_NOTE, NEW_DEPENDENCY_NOTE)
 
 
-def load_json(path: Path) -> Dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
+def sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for block in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def valid_sha256(value: Any) -> bool:
+    return (
+        isinstance(value, str)
+        and len(value) == 64
+        and all(char in "0123456789abcdef" for char in value.lower())
+    )
+
+
+def read_json_bytes(path: Path) -> tuple[Dict[str, Any], bytes]:
+    if path.is_symlink():
+        raise ValueError(f"Refusing symlinked file: {path}")
+    if not path.is_file():
+        raise ValueError(f"Missing ownership file: {path}")
+    raw = path.read_bytes()
+    try:
+        data = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError(f"Invalid JSON in {path}: {exc}") from exc
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
+    return data, raw
+
+
+def marker_bytes(manifest_raw: bytes, artifact_id: str) -> bytes:
+    return json.dumps(
+        {
+            "schema_version": MARKER_SCHEMA_VERSION,
+            "owner": MARKER_OWNER,
+            "artifact_id": artifact_id,
+            "manifest_sha256": sha256_bytes(manifest_raw),
+        },
+        indent=2,
+    ).encode("utf-8")
+
+
+def validate_ownership_identity(
+    directory: Path,
+    manifest: Dict[str, Any],
+    manifest_raw: bytes,
+) -> str:
+    """Validate existing converter ownership proof without creating it."""
+    if manifest.get("schema_version") not in {"1.0", "1.1"}:
+        raise ValueError("Manifest schema_version is not supported")
+    if not isinstance(manifest.get("provikom_converter_version"), str):
+        raise ValueError("Manifest is missing provikom_converter_version")
+    if manifest.get("backend") != "cheerpj" or manifest.get("entry_point") != "index.html":
+        raise ValueError("Manifest does not describe a CheerpJ artifact")
+
+    ownership = manifest.get("ownership")
+    if not isinstance(ownership, dict):
+        raise ValueError("Manifest has no ownership block")
+    if ownership.get("owner") != MARKER_OWNER:
+        raise ValueError("Manifest ownership owner is invalid")
+    if ownership.get("marker") != MARKER_FILENAME:
+        raise ValueError("Manifest ownership marker filename is invalid")
+    artifact_id = ownership.get("artifact_id")
+    if not isinstance(artifact_id, str) or not artifact_id:
+        raise ValueError("Manifest ownership artifact_id is invalid")
+
+    jar_name = manifest.get("jar_file")
+    if not isinstance(jar_name, str) or not jar_name or Path(jar_name).name != jar_name:
+        raise ValueError("Manifest jar_file is invalid")
+    jar_path = directory / jar_name
+    if jar_path.is_symlink() or not jar_path.is_file():
+        raise ValueError(f"Manifest main JAR is missing or unsafe: {jar_name}")
+    game = manifest.get("game")
+    if not isinstance(game, dict):
+        raise ValueError("Manifest game metadata is missing")
+    expected_hash = game.get("sha256")
+    expected_size = game.get("size_bytes")
+    if (
+        not valid_sha256(expected_hash)
+        or not isinstance(expected_size, int)
+        or isinstance(expected_size, bool)
+    ):
+        raise ValueError("Manifest game hash/size metadata is invalid")
+    if jar_path.stat().st_size != expected_size or sha256_file(jar_path) != expected_hash.lower():
+        raise ValueError("Manifest main JAR hash/size does not match")
+
+    marker_path = directory / MARKER_FILENAME
+    marker, _marker_raw = read_json_bytes(marker_path)
+    if marker.get("schema_version") != MARKER_SCHEMA_VERSION:
+        raise ValueError("Ownership marker schema_version is invalid")
+    if marker.get("owner") != MARKER_OWNER:
+        raise ValueError("Ownership marker owner is invalid")
+    if marker.get("artifact_id") != artifact_id:
+        raise ValueError("Ownership marker artifact_id does not match manifest")
+    marker_digest = marker.get("manifest_sha256")
+    if not valid_sha256(marker_digest):
+        raise ValueError("Ownership marker manifest_sha256 is invalid")
+
+    if marker_digest.lower() != sha256_bytes(manifest_raw):
+        if not isinstance(manifest.get("pilot_adaptation"), dict):
+            raise ValueError(
+                "Ownership marker digest is stale and the artifact has no prior "
+                "pilot adaptation; refusing to create new ownership proof"
+            )
+    return artifact_id
+
+
+def load_json(path: Path) -> Dict[str, Any]:
+    data, _raw = read_json_bytes(path)
     return data
 
 
@@ -216,8 +333,17 @@ def check_artifact(directory: Path) -> List[str]:
     if not index_path.is_file():
         return [f"Missing {index_path}"]
 
+    marker_path = directory / MARKER_FILENAME
+    if not marker_path.is_file():
+        return [f"Missing {marker_path}"]
+
     try:
-        current_manifest = load_json(manifest_path)
+        current_manifest, manifest_raw = read_json_bytes(manifest_path)
+        artifact_id = validate_ownership_identity(directory, current_manifest, manifest_raw)
+        _marker, marker_raw = read_json_bytes(marker_path)
+        if marker_raw != marker_bytes(manifest_raw, artifact_id):
+            errors.append(f"{marker_path} does not match current manifest bytes")
+
         expected_manifest = adapted_manifest(current_manifest)
         if current_manifest != expected_manifest:
             errors.append(f"{manifest_path} is not adapted")
@@ -240,7 +366,11 @@ def adapt_artifact(directory: Path) -> bool:
     manifest_path = directory / "manifest.json"
     app_path = directory / "app.js"
     index_path = directory / "index.html"
-    current_manifest = load_json(manifest_path)
+    marker_path = directory / MARKER_FILENAME
+
+    current_manifest, current_manifest_raw = read_json_bytes(manifest_path)
+    artifact_id = validate_ownership_identity(directory, current_manifest, current_manifest_raw)
+
     expected_manifest = adapted_manifest(current_manifest)
     current_app = app_path.read_text(encoding="utf-8")
     expected_app = adapted_app_js(current_app)
@@ -248,11 +378,18 @@ def adapt_artifact(directory: Path) -> bool:
     expected_index = adapted_index_html(current_index)
 
     changed = False
+    final_manifest_raw = current_manifest_raw
     if current_manifest != expected_manifest:
-        manifest_path.write_text(
-            json.dumps(expected_manifest, indent=2) + "\n", encoding="utf-8"
-        )
+        final_manifest_raw = json.dumps(expected_manifest, indent=2).encode("utf-8")
+        manifest_path.write_bytes(final_manifest_raw)
         changed = True
+
+    expected_marker_raw = marker_bytes(final_manifest_raw, artifact_id)
+    _marker, current_marker_raw = read_json_bytes(marker_path)
+    if current_marker_raw != expected_marker_raw:
+        marker_path.write_bytes(expected_marker_raw)
+        changed = True
+
     if current_app != expected_app:
         app_path.write_text(expected_app, encoding="utf-8")
         changed = True

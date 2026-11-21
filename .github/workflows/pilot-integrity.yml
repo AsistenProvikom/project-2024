@@ -28,6 +28,9 @@ jobs:
       - name: Verify artifacts, manifests, portal source, and release gate
         run: python3 tools/verify_static.py
 
+      - name: Run adaptation and ownership regression tests
+        run: python3 tools/test_adaptation.py
+
   offline-browser:
     name: Offline browser/catalog checks
     needs: static-integrity

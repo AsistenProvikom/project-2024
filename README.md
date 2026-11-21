@@ -246,6 +246,12 @@ python3 tools/adapt_generated_artifact.py --check web-games/car-traffic
 `--check` is part of the offline PR gate. The adapted manifests now describe the
 actual `/str/` mount and flattened dependency paths.
 
+The adapter validates the converter's existing ownership proof first. After any
+manifest change it refreshes `.provikom-artifact.json` so `manifest_sha256` matches
+the new raw manifest bytes, while preserving the original `artifact_id`, owner, and
+schema. It never creates a marker for a missing or mismatched artifact and refuses
+to rewrite stale ownership proof that was not previously adapted by this tool.
+
 By default the generated player stays on the portal origin. The iframe is therefore
 a lifecycle boundary, not a security sandbox: only repository-controlled generated
 artifacts may be used there. Set `generatedOrigin` in `data/player-config.json` to an
@@ -256,7 +262,8 @@ provided `nginx.conf` includes them.
 ## CI checks
 
 - `.github/workflows/pilot-integrity.yml` is the pull-request gate. It runs
-  `tools/verify_static.py` (no network) and `tools/verify_offline.py` (Chromium with
+  `tools/verify_static.py` (no network), `tools/test_adaptation.py` (ownership and
+  idempotence regression tests), and `tools/verify_offline.py` (Chromium with
   external network blocked). These checks are deterministic and do not require CheerpJ.
 - `.github/workflows/pilot-browser-cdn.yml` is manual-only. It runs
   `tools/verify_pilot.py`, requires the external CheerpJ CDN, and is never counted as

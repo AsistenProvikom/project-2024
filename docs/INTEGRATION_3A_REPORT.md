@@ -33,7 +33,10 @@ The code is hardened for review. Publication is intentionally blocked until lice
   - dependency `virtual_path` values are flattened under `/str/`.
 - `tools/adapt_generated_artifact.py` applies the adaptation after regeneration and supports `--check`.
 - `--check` is part of the static PR gate, so a regenerated, non-adapted artifact fails CI.
-- The adapter was tested against fresh converter output for Car Traffic and Paddle Game, including Paddle's nested `lib/AbsoluteLayout.jar` dependency.
+- The adapter validates the converter's existing ownership marker before writing. After manifest changes it refreshes only `manifest_sha256` against the new raw manifest bytes, preserving `artifact_id`, owner, and schema.
+- Missing, mismatched, or unsupported ownership proof is rejected; the adapter does not create new ownership proof for unrelated directories.
+- `tools/test_adaptation.py` covers marker validity, SHA refresh after manifest changes, repeated-adaptation idempotence, and rejection of missing/mismatched/stale markers.
+- The adapter was tested against fresh converter output for Car Traffic and Paddle Game, including Paddle's nested `lib/AbsoluteLayout.jar` dependency and marker refresh.
 
 ### 3. Iframe trust boundary and isolation
 
@@ -100,6 +103,7 @@ python3 tools/adapt_generated_artifact.py \
   web-games/car-traffic web-games/flappy web-games/paddle-game
 python3 tools/adapt_generated_artifact.py --check \
   web-games/car-traffic web-games/flappy web-games/paddle-game
+python3 tools/test_adaptation.py
 ```
 
 ## Portal Integration
@@ -116,10 +120,12 @@ python3 tools/adapt_generated_artifact.py --check \
 
 ```bash
 python3 tools/verify_static.py
+python3 tools/test_adaptation.py
 python3 tools/verify_offline.py
 ```
 
 - Static integrity: **68/68 passed**.
+- Ownership/adaptation regression: **7/7 tests passed**.
 - Offline Chromium: **20/20 passed**.
 - External network: blocked during the offline browser run.
 - Static checks include release-gate fail-closed and pass-open behavior.

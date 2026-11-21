@@ -88,6 +88,7 @@ def main() -> int:
         "tools/verify_pilot.py",
         "tools/verify_offline.py",
         "tools/check_release_gate.py",
+        "tools/test_adaptation.py",
         ".github/workflows/pages.yml",
         ".github/workflows/pilot-integrity.yml",
         ".github/workflows/pilot-browser-cdn.yml",
@@ -147,17 +148,28 @@ def main() -> int:
         if not files_exist:
             continue
 
-        marker = load_json(marker_path)
+        manifest = load_json(manifest_path)
+        manifest_raw = manifest_path.read_bytes()
+        marker_raw = marker_path.read_bytes()
+        ownership = manifest.get("ownership") if isinstance(manifest.get("ownership"), dict) else {}
+        artifact_id = ownership.get("artifact_id")
+        expected_marker_raw = (
+            adapt.marker_bytes(manifest_raw, artifact_id)
+            if isinstance(artifact_id, str) and artifact_id
+            else None
+        )
         check(
-            f"{name}: converter ownership marker is intact",
-            marker.get("owner") == "provikom-converter",
-            marker.get("owner"),
+            f"{name}: converter ownership marker matches raw manifest bytes",
+            expected_marker_raw is not None and marker_raw == expected_marker_raw,
+            {
+                "artifact_id": artifact_id,
+                "marker_sha256": load_json(marker_path).get("manifest_sha256"),
+                "manifest_sha256": hashlib.sha256(manifest_raw).hexdigest(),
+            },
         )
 
         adaptation_errors = adapt.check_artifact(artifact_dir)
         check(f"{name}: /str/ adaptation is current", not adaptation_errors, adaptation_errors)
-
-        manifest = load_json(manifest_path)
         app_js = app_path.read_text(encoding="utf-8")
         try:
             config = adapt.extract_config(app_js)
@@ -299,10 +311,12 @@ def main() -> int:
 
     integrity_workflow = (ROOT / ".github/workflows/pilot-integrity.yml").read_text(encoding="utf-8")
     check(
-        "CI: PR offline gate runs static and offline checks",
+        "CI: PR offline gate runs static, ownership regression, and offline checks",
         "pull_request:" in integrity_workflow
         and "verify_static.py" in integrity_workflow
-        and "verify_offline.py" in integrity_workflow,
+        and "test_adaptation.py" in integrity_workflow
+        and "verify_offline.py" in integrity_workflow
+        and "python3 tools/test_adaptation.py" in integrity_workflow,
     )
     cdn_workflow = (ROOT / ".github/workflows/pilot-browser-cdn.yml").read_text(encoding="utf-8")
     check(
