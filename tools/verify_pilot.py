@@ -523,16 +523,33 @@ def verify_legacy_snake(page):
             break
         page.wait_for_timeout(500)
     check("Snake: legacy launcher display surface exists", mounted)
-    page.wait_for_timeout(4000)
+    page.wait_for_timeout(7000)
     canvas = page.locator("#applet canvas").last
-    stats = image_stats(canvas.screenshot())
-    screenshot(page, "3a-legacy-snake.png")
+    initial_stats = image_stats(canvas.screenshot())
     check(
         "Snake: legacy launch snapshot recorded (gameplay not verified)",
         True,
         {
-            "note": "This proves only that the legacy applet surface launched. Gameplay is not asserted and the captured window may be blank.",
-            **stats,
+            "note": "The launch surface can remain unpainted until the game receives input.",
+            **initial_stats,
+        },
+    )
+
+    box = canvas.bounding_box()
+    if box:
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.wait_for_timeout(1500)
+    interactive_stats = image_stats(canvas.screenshot())
+    screenshot(page, "3a-legacy-snake.png")
+    check(
+        "Snake: first input produces a non-blank legacy render (gameplay not verified)",
+        interactive_stats["unique_colors"] >= 100
+        and interactive_stats["luminance_stddev"] >= 8
+        and interactive_stats["non_dark_ratio"] >= 0.1,
+        {
+            "note": "This proves repaint after input, not playable gameplay.",
+            "before": initial_stats,
+            **interactive_stats,
         },
     )
 
@@ -667,12 +684,14 @@ def main():
             "generated_gameplay": "automated canvas and interaction checks",
             "legacy_launcher": "automated launch, snapshot, and teardown only",
             "legacy_gameplay": "not verified by this script",
+            "snake": "launch surface requires a center click before it paints; gameplay remains unverified",
             "pong": "not launched; known browser-audio limitation is disclosed",
             "external_dependency": "requires the CheerpJ CDN",
         },
         "notes": [
             "Automated Chromium verification with local HTTP Range support.",
             "Legacy checks prove launcher/teardown behavior only; they do not prove playable legacy gameplay.",
+            "Snake's legacy canvas can be blank until the game receives a center click; the follow-up check proves a non-blank repaint only.",
             "Screenshots require separate visual/manual review.",
             "Pong was not launched; its known browser audio limitation is disclosed in the catalog.",
         ],
