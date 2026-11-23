@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
-"""Adapt and check generated CheerpJ artifacts for subdirectory hosting.
+"""Adapt and check generated artifacts for portal subdirectory hosting.
 
-The converter emits artifacts that assume /app/ is served from the web root.
-The portal serves each artifact under /web-games/<slug>/, so the generated
-player must load its JAR files into CheerpOS under /str/ instead.
+CheerpJ artifacts assume /app/ is served from the web root. The portal serves
+each artifact under /web-games/<slug>/, so their players must load JAR files
+into CheerpOS under /str/ instead.
+
+Source-backed SwingJS artifacts already use relative URLs, an empty SwingJS
+serverURL, and root-level index.html. This tool validates them as portal-safe
+and deliberately leaves them unchanged.
 
 Run after every artifact regeneration:
 
@@ -25,7 +29,7 @@ import json
 import posixpath
 import re
 import sys
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, Dict, List
 
 MOUNT_ROOT = "/str/"
@@ -261,8 +265,9 @@ def validate_ownership_identity(
         raise ValueError("Manifest schema_version is not supported")
     if not isinstance(manifest.get("provikom_converter_version"), str):
         raise ValueError("Manifest is missing provikom_converter_version")
-    if manifest.get("backend") != "cheerpj" or manifest.get("entry_point") != "index.html":
-        raise ValueError("Manifest does not describe a CheerpJ artifact")
+    backend = manifest.get("backend")
+    if backend not in {"cheerpj", "swingjs"} or manifest.get("entry_point") != "index.html":
+        raise ValueError("Manifest does not describe a supported Provikom artifact")
 
     ownership = manifest.get("ownership")
     if not isinstance(ownership, dict):
@@ -275,6 +280,52 @@ def validate_ownership_identity(
     if not isinstance(artifact_id, str) or not artifact_id:
         raise ValueError("Manifest ownership artifact_id is invalid")
 
+    marker_path = directory / MARKER_FILENAME
+    marker, marker_raw = read_json_bytes(marker_path)
+    if marker.get("schema_version") != MARKER_SCHEMA_VERSION:
+        raise ValueError("Ownership marker schema_version is invalid")
+    if marker.get("owner") != MARKER_OWNER:
+        raise ValueError("Ownership marker owner is invalid")
+    if marker.get("artifact_id") != artifact_id:
+        raise ValueError("Ownership marker artifact_id does not match manifest")
+    marker_digest = marker.get("manifest_sha256")
+    if not valid_sha256(marker_digest):
+        raise ValueError("Ownership marker manifest_sha256 is invalid")
+
+    if marker_digest.lower() != sha256_bytes(manifest_raw):
+        if backend != "cheerpj" or not isinstance(manifest.get("pilot_adaptation"), dict):
+            raise ValueError(
+                "Ownership marker digest is stale and the artifact has no prior "
+                "pilot adaptation; refusing to create new ownership proof"
+            )
+
+    if backend == "cheerpj":
+        _validate_cheerpj_payload(directory, manifest)
+    else:
+        _validate_swingjs_payload(directory, manifest)
+        if marker_raw != marker_bytes(manifest_raw, artifact_id):
+            raise ValueError("Ownership marker bytes do not match the SwingJS manifest")
+    return artifact_id
+
+
+def _safe_relative_file(directory: Path, name: object) -> Path:
+    if not isinstance(name, str) or not name:
+        raise ValueError("Artifact path is missing")
+    normalized = name.replace("\\", "/")
+    relative = PurePosixPath(normalized)
+    if relative.is_absolute() or any(part in {"", ".."} for part in relative.parts):
+        raise ValueError(f"Artifact path is unsafe: {name!r}")
+    path = directory.joinpath(*relative.parts)
+    if path.is_symlink() or not path.is_file():
+        raise ValueError(f"Artifact file is missing or unsafe: {name}")
+    try:
+        path.resolve().relative_to(directory.resolve())
+    except ValueError as exc:
+        raise ValueError(f"Artifact path escapes its directory: {name}") from exc
+    return path
+
+
+def _validate_cheerpj_payload(directory: Path, manifest: Dict[str, Any]) -> None:
     jar_name = manifest.get("jar_file")
     if not isinstance(jar_name, str) or not jar_name or Path(jar_name).name != jar_name:
         raise ValueError("Manifest jar_file is invalid")
@@ -295,25 +346,33 @@ def validate_ownership_identity(
     if jar_path.stat().st_size != expected_size or sha256_file(jar_path) != expected_hash.lower():
         raise ValueError("Manifest main JAR hash/size does not match")
 
-    marker_path = directory / MARKER_FILENAME
-    marker, _marker_raw = read_json_bytes(marker_path)
-    if marker.get("schema_version") != MARKER_SCHEMA_VERSION:
-        raise ValueError("Ownership marker schema_version is invalid")
-    if marker.get("owner") != MARKER_OWNER:
-        raise ValueError("Ownership marker owner is invalid")
-    if marker.get("artifact_id") != artifact_id:
-        raise ValueError("Ownership marker artifact_id does not match manifest")
-    marker_digest = marker.get("manifest_sha256")
-    if not valid_sha256(marker_digest):
-        raise ValueError("Ownership marker manifest_sha256 is invalid")
 
-    if marker_digest.lower() != sha256_bytes(manifest_raw):
-        if not isinstance(manifest.get("pilot_adaptation"), dict):
-            raise ValueError(
-                "Ownership marker digest is stale and the artifact has no prior "
-                "pilot adaptation; refusing to create new ownership proof"
-            )
-    return artifact_id
+def _validate_swingjs_payload(directory: Path, manifest: Dict[str, Any]) -> None:
+    source = manifest.get("source_project")
+    if not isinstance(source, dict):
+        raise ValueError("SwingJS manifest is missing source_project")
+    generated_name = source.get("generated_js")
+    generated_path = _safe_relative_file(directory, generated_name)
+    expected_js_hash = source.get("generated_js_sha256")
+    if not valid_sha256(expected_js_hash):
+        raise ValueError("SwingJS generated_js_sha256 is invalid")
+    if sha256_file(generated_path) != expected_js_hash.lower():
+        raise ValueError("SwingJS generated JavaScript hash does not match")
+    if not valid_sha256(source.get("source_sha256")):
+        raise ValueError("SwingJS source_sha256 is invalid")
+    generated_files = manifest.get("generated_files")
+    if not isinstance(generated_files, list) or not all(
+        isinstance(name, str) for name in generated_files
+    ):
+        raise ValueError("SwingJS generated_files is invalid")
+    for name in generated_files:
+        _safe_relative_file(directory, name)
+    if generated_name not in generated_files:
+        raise ValueError("SwingJS generated_js is not listed in generated_files")
+    index_path = _safe_relative_file(directory, "index.html")
+    index_html = index_path.read_text(encoding="utf-8")
+    if re.search(r"serverURL\s*:\s*['\"]https?://", index_html):
+        raise ValueError("SwingJS index.html uses an external serverURL")
 
 
 def load_json(path: Path) -> Dict[str, Any]:
@@ -324,16 +383,12 @@ def load_json(path: Path) -> Dict[str, Any]:
 def check_artifact(directory: Path) -> List[str]:
     errors: List[str] = []
     manifest_path = directory / "manifest.json"
-    app_path = directory / "app.js"
     index_path = directory / "index.html"
+    marker_path = directory / MARKER_FILENAME
     if not manifest_path.is_file():
         return [f"Missing {manifest_path}"]
-    if not app_path.is_file():
-        return [f"Missing {app_path}"]
     if not index_path.is_file():
         return [f"Missing {index_path}"]
-
-    marker_path = directory / MARKER_FILENAME
     if not marker_path.is_file():
         return [f"Missing {marker_path}"]
 
@@ -344,18 +399,22 @@ def check_artifact(directory: Path) -> List[str]:
         if marker_raw != marker_bytes(manifest_raw, artifact_id):
             errors.append(f"{marker_path} does not match current manifest bytes")
 
-        expected_manifest = adapted_manifest(current_manifest)
-        if current_manifest != expected_manifest:
-            errors.append(f"{manifest_path} is not adapted")
+        if current_manifest.get("backend") == "cheerpj":
+            app_path = directory / "app.js"
+            if not app_path.is_file():
+                return [f"Missing {app_path}"]
+            expected_manifest = adapted_manifest(current_manifest)
+            if current_manifest != expected_manifest:
+                errors.append(f"{manifest_path} is not adapted")
 
-        current_app = app_path.read_text(encoding="utf-8")
-        expected_app = adapted_app_js(current_app)
-        if current_app != expected_app:
-            errors.append(f"{app_path} is not adapted")
+            current_app = app_path.read_text(encoding="utf-8")
+            expected_app = adapted_app_js(current_app)
+            if current_app != expected_app:
+                errors.append(f"{app_path} is not adapted")
 
-        current_index = index_path.read_text(encoding="utf-8")
-        if adapted_index_html(current_index) != current_index:
-            errors.append(f"{index_path} is not adapted")
+            current_index = index_path.read_text(encoding="utf-8")
+            if adapted_index_html(current_index) != current_index:
+                errors.append(f"{index_path} is not adapted")
     except ValueError as exc:
         errors.append(f"{directory}: {exc}")
 
@@ -370,6 +429,8 @@ def adapt_artifact(directory: Path) -> bool:
 
     current_manifest, current_manifest_raw = read_json_bytes(manifest_path)
     artifact_id = validate_ownership_identity(directory, current_manifest, current_manifest_raw)
+    if current_manifest.get("backend") == "swingjs":
+        return False
 
     expected_manifest = adapted_manifest(current_manifest)
     current_app = app_path.read_text(encoding="utf-8")
@@ -414,7 +475,9 @@ def main(argv: List[str] | None = None) -> int:
                 for error in errors:
                     print(f"[FAIL] {error}", file=sys.stderr)
             else:
-                print(f"[PASS] adapted artifact: {directory}")
+                backend = load_json(directory / "manifest.json").get("backend")
+                kind = "source artifact" if backend == "swingjs" else "adapted artifact"
+                print(f"[PASS] {kind}: {directory}")
         else:
             try:
                 changed = adapt_artifact(directory)

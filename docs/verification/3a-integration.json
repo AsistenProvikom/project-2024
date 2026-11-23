@@ -1,9 +1,9 @@
 {
   "schema_version": "1.0",
   "milestone": "3A",
-  "generated_at": "2026-11-21T07:33:29Z",
-  "base_commit": "686eccc8a16c2017416738c9ef6bb454e381578c",
-  "portal_url": "http://127.0.0.1:42437/",
+  "generated_at": "2026-11-23T03:35:25Z",
+  "base_commit": "6a17f891a6041a7f5ea4938461da15abf7f9f684",
+  "portal_url": "http://127.0.0.1:46601/",
   "checks": [
     {
       "name": "Source hash unchanged: games/CarTraffic.jar",
@@ -108,8 +108,8 @@
       "passed": true,
       "detail": {
         "difference_ratio": 0.6318518518518519,
-        "unique_colors": 1985.0,
-        "luminance_stddev": 35.08184909288248,
+        "unique_colors": 1968.0,
+        "luminance_stddev": 35.082080002641064,
         "non_dark_ratio": 0.9582407407407407
       }
     },
@@ -252,8 +252,8 @@
       "passed": true,
       "detail": {
         "difference_ratio": 0.9608333333333333,
-        "unique_colors": 1030.0,
-        "luminance_stddev": 35.85765581180249,
+        "unique_colors": 1027.0,
+        "luminance_stddev": 35.860785972565964,
         "non_dark_ratio": 1.0
       }
     },
@@ -325,9 +325,24 @@
       "name": "Snake: legacy launch snapshot recorded (gameplay not verified)",
       "passed": true,
       "detail": {
-        "note": "This proves only that the legacy applet surface launched. Gameplay is not asserted and the captured window may be blank.",
+        "note": "The launch surface can remain unpainted until the game receives input.",
         "unique_colors": 71.0,
         "luminance_stddev": 15.906651431080677,
+        "non_dark_ratio": 1.0
+      }
+    },
+    {
+      "name": "Snake: first input produces a non-blank legacy render (gameplay not verified)",
+      "passed": true,
+      "detail": {
+        "note": "This proves repaint after input, not playable gameplay.",
+        "before": {
+          "unique_colors": 71.0,
+          "luminance_stddev": 15.906651431080677,
+          "non_dark_ratio": 1.0
+        },
+        "unique_colors": 208.0,
+        "luminance_stddev": 20.644761757422668,
         "non_dark_ratio": 1.0
       }
     },
@@ -363,8 +378,8 @@
     }
   ],
   "summary": {
-    "total": 53,
-    "passed": 53,
+    "total": 54,
+    "passed": 54,
     "failed": 0
   },
   "screenshots": [
@@ -384,10 +399,23 @@
     "warning: An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.",
     "warning: An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing.",
     "log:               ____ _                              _\n             / ___| |__   ___  ___ _ __ _ __     | |\n            | |   | '_ \\ / _ \\/ _ \\ '__| '_ \\ _  | |\n            | |___| | | |  __/  __/ |  | |_) | |_| |\n             \\____|_| |_|\\___|\\___|_|  | .__/ \\___/\n                                       |_|\n\n CHEERPJ COMMUNITY EDITION - FOR PERSONAL AND NON-BUSINESS USE ONLY\nAny other use requires a license: https://cheerpj.com/docs/licensing",
-    "error: Failed to load resource: net::ERR_NETWORK_CHANGED",
     "log: CheerpJ: Font rempping for Snap ITC\n",
-    "error: Failed to load resource: net::ERR_NETWORK_CHANGED",
-    "error: Failed to load resource: net::ERR_NETWORK_CHANGED",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
+    "log: CheerpJ: Font rempping for Arial\n",
     "log: CheerpJ: Font rempping for Arial\n",
     "log: CheerpJ: Font rempping for Arial\n",
     "log: CheerpJ: Font rempping for Arial\n",
@@ -531,7 +559,8 @@
     "log: GIF berhasil dimuat\n",
     "log: Frame size: java.awt.Dimension[width=713,height=613]\n",
     "log: Menu panel size: java.awt.Dimension[width=713,height=593]\n",
-    "log: Application started successfully\n"
+    "log: Application started successfully\n",
+    "log: Membuka menu kustomisasi...\n"
   ],
   "server_requests": [
     {
@@ -621,12 +650,12 @@
     },
     {
       "method": "GET",
-      "path": "/web-games/paddle-game/style.css",
+      "path": "/web-games/paddle-game/app.js",
       "range": ""
     },
     {
       "method": "GET",
-      "path": "/web-games/paddle-game/app.js",
+      "path": "/web-games/paddle-game/style.css",
       "range": ""
     },
     {
@@ -655,12 +684,14 @@
     "generated_gameplay": "automated canvas and interaction checks",
     "legacy_launcher": "automated launch, snapshot, and teardown only",
     "legacy_gameplay": "not verified by this script",
+    "snake": "launch surface requires a center click before it paints; gameplay remains unverified",
     "pong": "not launched; known browser-audio limitation is disclosed",
     "external_dependency": "requires the CheerpJ CDN"
   },
   "notes": [
     "Automated Chromium verification with local HTTP Range support.",
     "Legacy checks prove launcher/teardown behavior only; they do not prove playable legacy gameplay.",
+    "Snake's legacy canvas can be blank until the game receives a center click; the follow-up check proves a non-blank repaint only.",
     "Screenshots require separate visual/manual review.",
     "Pong was not launched; its known browser audio limitation is disclosed in the catalog."
   ]
