@@ -27,6 +27,57 @@ def marker_raw(directory: Path) -> bytes:
     return (directory / adapt.MARKER_FILENAME).read_bytes()
 
 
+def write_swingjs_artifact(directory: Path, *, server_url: str = "") -> None:
+    generated = directory / "swingjs" / "j2s" / "demo" / "Game.js"
+    generated.parent.mkdir(parents=True)
+    generated.write_text("Clazz.newClass('demo.Game');\n", encoding="utf-8")
+    (directory / "index.html").write_text(
+        "<!doctype html><script src=\"swingjs/swingjs2.js\"></script>"
+        "<script>Info = {serverURL: '" + server_url + "', j2sPath: 'swingjs/j2s'};</script>",
+        encoding="utf-8",
+    )
+    manifest = {
+        "schema_version": "1.1",
+        "provikom_converter_version": "0.1.0",
+        "backend": "swingjs",
+        "entry_point": "index.html",
+        "game": {"title": "SwingJS Test", "main_class": "demo.Game", "has_audio": False},
+        "source_project": {
+            "name": "test",
+            "main_class": "demo.Game",
+            "source_sha256": "a" * 64,
+            "source_file_count": 1,
+            "files": [{"path": "src/demo/Game.java", "sha256": "b" * 64}],
+            "generated_js": "swingjs/j2s/demo/Game.js",
+            "generated_js_sha256": adapt.sha256_file(generated),
+        },
+        "paths": {"entry": "index.html", "web_root": "/", "virtual_mount_root": "/"},
+        "generated_files": [
+            "index.html",
+            "manifest.json",
+            adapt.MARKER_FILENAME,
+            "swingjs/j2s/demo/Game.js",
+        ],
+        "notes": [],
+        "ownership": {
+            "owner": adapt.MARKER_OWNER,
+            "marker": adapt.MARKER_FILENAME,
+            "artifact_id": "c" * 32,
+        },
+        "lifecycle": {
+            "state": "built",
+            "prediction_only": True,
+            "execution_verified": False,
+            "source": "artifact_generation",
+        },
+    }
+    raw = json.dumps(manifest, indent=2).encode("utf-8")
+    (directory / "manifest.json").write_bytes(raw)
+    (directory / adapt.MARKER_FILENAME).write_bytes(
+        adapt.marker_bytes(raw, manifest["ownership"]["artifact_id"])
+    )
+
+
 class AdaptationOwnershipTests(unittest.TestCase):
     def copy_artifact(self, name: str, parent: Path) -> Path:
         destination = parent / name
@@ -128,6 +179,79 @@ class AdaptationOwnershipTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "no prior pilot adaptation"):
                 adapt.adapt_artifact(directory)
             self.assertEqual(marker_raw(directory), before)
+
+    def test_swingjs_source_artifact_needs_no_path_rewrite(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "web-games" / "swing-demo"
+            write_swingjs_artifact(directory)
+            self.assertEqual(adapt.check_artifact(directory), [])
+            manifest_before = (directory / "manifest.json").read_bytes()
+            marker_before = marker_raw(directory)
+            self.assertFalse(adapt.adapt_artifact(directory))
+            self.assertFalse(adapt.adapt_artifact(directory))
+            self.assertEqual((directory / "manifest.json").read_bytes(), manifest_before)
+            self.assertEqual(marker_raw(directory), marker_before)
+
+    def test_swingjs_generated_javascript_tampering_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "swing-demo"
+            write_swingjs_artifact(directory)
+            generated = directory / "swingjs" / "j2s" / "demo" / "Game.js"
+            generated.write_text("Clazz.newClass('demo.Tampered');\n", encoding="utf-8")
+            errors = adapt.check_artifact(directory)
+            self.assertTrue(any("hash does not match" in error for error in errors), errors)
+            with self.assertRaisesRegex(ValueError, "hash does not match"):
+                adapt.adapt_artifact(directory)
+
+    def test_swingjs_external_server_url_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "swing-demo"
+            write_swingjs_artifact(directory, server_url="https://example.invalid/")
+            errors = adapt.check_artifact(directory)
+            self.assertTrue(any("external serverURL" in error for error in errors), errors)
+
+    def test_swingjs_symlinked_index_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "swing-demo"
+            write_swingjs_artifact(directory)
+            index = directory / "index.html"
+            target = directory / "real-index.html"
+            index.rename(target)
+            index.symlink_to(target)
+            errors = adapt.check_artifact(directory)
+            self.assertTrue(any("index.html" in error and "unsafe" in error for error in errors), errors)
+
+    def test_swingjs_unsafe_generated_file_list_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "swing-demo"
+            write_swingjs_artifact(directory)
+            manifest_path = directory / "manifest.json"
+            manifest = load(manifest_path)
+            artifact_id = manifest["ownership"]["artifact_id"]
+            manifest["generated_files"].append("../escape.txt")
+            raw = json.dumps(manifest, indent=2).encode("utf-8")
+            manifest_path.write_bytes(raw)
+            (directory / adapt.MARKER_FILENAME).write_bytes(
+                adapt.marker_bytes(raw, artifact_id)
+            )
+            errors = adapt.check_artifact(directory)
+            self.assertTrue(any("path is unsafe" in error for error in errors), errors)
+
+    def test_swingjs_unsafe_generated_path_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "swing-demo"
+            write_swingjs_artifact(directory)
+            manifest_path = directory / "manifest.json"
+            manifest = load(manifest_path)
+            artifact_id = manifest["ownership"]["artifact_id"]
+            manifest["source_project"]["generated_js"] = "../Game.js"
+            raw = json.dumps(manifest, indent=2).encode("utf-8")
+            manifest_path.write_bytes(raw)
+            (directory / adapt.MARKER_FILENAME).write_bytes(
+                adapt.marker_bytes(raw, artifact_id)
+            )
+            errors = adapt.check_artifact(directory)
+            self.assertTrue(any("path is unsafe" in error for error in errors), errors)
 
     def test_check_detects_stale_marker_digest(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
