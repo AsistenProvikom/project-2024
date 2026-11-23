@@ -3,42 +3,66 @@
     "name": "Car Traffic",
     "jar": "CarTraffic.jar",
     "image": "./images/default.png",
-    "description": "Kendalikan kendaraan di persimpangan yang sibuk, hindari tabrakan."
+    "description": "Kendalikan kendaraan di persimpangan yang sibuk, hindari tabrakan.",
+    "player": {
+      "mode": "generated",
+      "entry": "web-games/car-traffic/index.html"
+    }
   },
   {
     "name": "Flappy Bird",
     "jar": "flappy.jar",
     "image": "./images/default.png",
-    "description": "Terbangkan burung melewati rintangan pipa tanpa menyentuhnya."
+    "description": "Terbangkan burung melewati rintangan pipa tanpa menyentuhnya.",
+    "player": {
+      "mode": "generated",
+      "entry": "web-games/flappy/index.html"
+    }
   },
   {
     "name": "Froggie Cross the Road",
     "jar": "FrogieCrossTheRoad.jar",
     "image": "./images/default.png",
-    "description": "Bantu katak menyeberangi jalan dan sungai yang berbahaya."
+    "description": "Bantu katak menyeberangi jalan dan sungai yang berbahaya.",
+    "player": {
+      "mode": "legacy"
+    }
   },
   {
     "name": "Minesweeper",
     "jar": "Minesweeper.jar",
     "image": "./images/default.png",
-    "description": "Temukan semua ranjau tanpa meledakkannya. Gunakan logika!"
+    "description": "Temukan semua ranjau tanpa meledakkannya. Gunakan logika!",
+    "player": {
+      "mode": "legacy"
+    }
   },
   {
     "name": "Paddle Game",
     "jar": "PaddleGame.jar",
     "image": "./images/default.png",
-    "description": "Pantulkan bola menggunakan paddle dan hancurkan semua blok."
+    "description": "Pantulkan bola menggunakan paddle dan hancurkan semua blok.",
+    "player": {
+      "mode": "generated",
+      "entry": "web-games/paddle-game/index.html"
+    }
   },
   {
     "name": "Pong",
     "jar": "PongGame.jar",
     "image": "./images/default.png",
-    "description": "Game tenis meja klasik. Jangan biarkan bola melewati paddle-mu!"
+    "description": "Game tenis meja klasik. Catatan: audio Pong belum didukung di browser dan game dapat gagal dimuat atau menampilkan error runtime.",
+    "player": {
+      "mode": "legacy"
+    }
   },
   {
     "name": "Snake",
     "jar": "Snake Game FinPro.jar",
     "image": "./images/default.png",
-    "description": "Kendalikan ular yang memanjang, makan makanan dan hindari dinding."
+    "description": "Kendalikan ular yang memanjang, makan makanan dan hindari dinding.",
+    "player": {
+      "mode": "legacy"
+    }
   }
 ]

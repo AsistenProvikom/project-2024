@@ -1,0 +1,55 @@
+name: Pilot integrity (offline PR gate)
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pilot-integrity-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  static-integrity:
+    name: Static integrity and release gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Verify artifacts, manifests, portal source, and release gate
+        run: python3 tools/verify_static.py
+
+      - name: Run adaptation and ownership regression tests
+        run: python3 tools/test_adaptation.py
+
+  offline-browser:
+    name: Offline browser/catalog checks
+    needs: static-integrity
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Playwright
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install playwright
+          python -m playwright install --with-deps chromium
+
+      - name: Run offline browser tests (external network blocked)
+        run: python3 tools/verify_offline.py
