@@ -53,7 +53,7 @@ The code is hardened for review. Publication is intentionally blocked until lice
 
 - Automated legacy checks now explicitly cover **launcher, snapshot, Stop, and Back** only.
 - Evidence includes `verification_scope.legacy_gameplay = "not verified by this script"`.
-- Snake's legacy window launches but is visually blank in the captured screenshot. This is recorded as an unresolved gameplay limitation, not a gameplay pass.
+- Snake's legacy window launches but its initial canvas can be visually blank. An input-triggered repaint produces a non-blank state; this is still an unresolved gameplay limitation, not a gameplay pass.
 - Froggie, Minesweeper, Pong, and Snake gameplay still require manual acceptance.
 
 ### 5. Production publication gate
@@ -126,7 +126,8 @@ python3 tools/verify_offline.py
 ```
 
 - Static integrity: **68/68 passed**.
-- Ownership/adaptation regression: **7/7 tests passed**.
+- Ownership/adaptation regression: **7/7 tests passed** at the 3A checkpoint.
+  The current branch has **13/13** after Milestone 4 source-artifact coverage.
 - Offline Chromium: **20/20 passed**.
 - External network: blocked during the offline browser run.
 - Static checks include release-gate fail-closed and pass-open behavior.
@@ -146,7 +147,7 @@ python3 tools/verify_offline.py
 python3 tools/verify_pilot.py
 ```
 
-Latest successful local run: **53/53 checks passed**. Evidence was regenerated at `2026-11-21T07:33:29Z`.
+Latest successful local run: **54/54 checks passed**. Evidence was regenerated at `2026-11-23T03:35:25Z`.
 
 Coverage includes:
 
@@ -156,7 +157,9 @@ Coverage includes:
 - Flappy generated launch, canvas mount, menu render, PLAY transition, Stop, and Back teardown.
 - Paddle generated launch, level selection, Easy-mode transition, dependency Range request, Stop, and Back teardown.
 - Paddle `AbsoluteLayout.jar` Range response: HTTP 206 with `Accept-Ranges: bytes`.
-- Snake legacy launcher surface, snapshot, Stop cleanup, and Back navigation.
+- Snake legacy launcher surface, first-input repaint, Stop cleanup, and Back
+  navigation. The initial canvas can be blank until a center click; gameplay
+  remains unverified.
 - Source hash preservation and absence of fatal console/page errors.
 - Pong was not launched; the catalog discloses its known browser-audio/runtime limitation.
 
@@ -186,7 +189,8 @@ Evidence: `docs/verification/3a-integration.json`.
 - Car Traffic generated menu renders and responds to interaction.
 - Flappy generated menu and PLAY gameplay render.
 - Paddle level selection and Easy gameplay render.
-- Snake's legacy window launches but appears mostly blank; gameplay remains unverified.
+- Snake's legacy window launches with a blank/unpainted canvas; a center click
+  produces a non-blank state. Gameplay remains unverified.
 - Froggie, Minesweeper, and Pong were not visually confirmed in this milestone.
 
 No claim is made that all legacy games are visually fully playable in the browser.
@@ -194,7 +198,7 @@ No claim is made that all legacy games are visually fully playable in the browse
 ## Known Limitations and Blockers
 
 - **Blocker — licensing/redistribution:** generated files duplicate the original JARs. Redistribution permission and CheerpJ Community Edition licensing must be approved before publication.
-- **Blocker — legacy acceptance:** legacy gameplay, especially Snake's blank window, still needs manual acceptance.
+- **Blocker — legacy acceptance:** legacy gameplay, including Snake's input-triggered repaint state, still needs manual acceptance.
 - **Release gate:** `PILOT_RELEASE_APPROVED` must remain unset/false until the blockers are resolved. Merging to `main` will not deploy while the gate is closed.
 - CheerpJ CDN availability is an external dependency. CDN browser checks are manual and can fail independently of the deterministic PR gate.
 - Same-origin generated content is trusted code. The iframe is not a security boundary unless the optional separate-origin mode is configured.
